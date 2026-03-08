@@ -4,6 +4,38 @@ Newest entries at the top.
 
 ---
 
+## auth-oauth-flow — 2026-03-08
+
+**PR:** #4 — feat(auth): GitHub OAuth flow with HttpOnly session cookie
+**Merged commit:** 0d9f805 (squash of bef5620, 630bcbe)
+**Arquivos principais:** `api/routers/auth.py`, `api/services/redis.py`, `api/services/jwt.py`, `api/db.py`, `api/main.py`, `api/config.py`
+
+**O que foi feito:**
+Implementou o fluxo OAuth completo com GitHub. `/auth/login` armazena um state CSRF de uso único no Redis; `/auth/callback` valida o state (GETDEL atômico), troca o code pelo token GitHub, faz upsert de `Handle` + `Session` no banco e emite um JWT como cookie HttpOnly. `/auth/logout` limpa o cookie.
+
+Novos módulos criados: `api/db.py` (async session factory), `api/services/redis.py`, `api/services/jwt.py`.
+
+Correções adicionais: CORS `allow_origins=["*"]` substituído por `settings.allowed_origins` + `allow_credentials=True`; dois `httpx.AsyncClient()` consolidados em um (keep-alive); params OAuth via `httpx.URL.copy_merge_params`; `db.refresh(session)` redundante removido (`expire_on_commit=False` torna-o no-op).
+
+**Decisões tomadas:**
+- JWT via `python-jose[cryptography]` (HS256, TTL 30 dias)
+- Cookie: `HttpOnly` + `Secure` + `SameSite=Lax`
+- Redis GETDEL para validação atômica de state one-time-use
+- NullPool para DB (compatível com Railway/PgBouncer)
+- Headers GitHub reutilizados de `api/services/github.py`
+
+**Armadilhas encontradas:**
+- `allow_origins=["*"]` quebra cookies cross-origin silenciosamente — requer `allowed_origins` explícito + `allow_credentials=True`
+- Deletar branch remota antes de `gh pr merge` fecha o PR; foi necessário re-push e recriar o PR
+- Branch protection exige CI passando antes do merge; auto-merge estava desativado no repo
+
+**Próximos passos:**
+- Implementar middleware de validação de sessão (ler cookie, decodificar JWT, injetar usuário atual)
+- Adicionar checagem de expiração em `/auth/callback` contra `Session.expires_at`
+- Rate limiting em `/auth/login` e `/auth/callback`
+
+---
+
 ## auth-session-model — 2026-03-08
 
 **PR:** #2 — feat(auth): Handle e Session SQLModel models com Alembic migration

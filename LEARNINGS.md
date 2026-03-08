@@ -80,3 +80,39 @@ Fix: `datetime.now(tz=timezone.utc)` everywhere — returns an aware datetime an
 `api/config.py` (which handles `.env` loading via python-dotenv). This means migrations work in
 production (where the var is injected) but silently break in local dev (where only `.env` exists).
 Fix: import `settings` from `api/config.py` in `env.py` and read `settings.database_url`.
+
+## 2026-03-08 — CORS: allow_origins=["*"] silently blocks HttpOnly cookies cross-origin
+
+`CORSMiddleware(allow_origins=["*"])` causes browsers to strip `Set-Cookie` headers on
+cross-origin responses. There is no browser error — cookies simply never arrive. Fix requires two
+changes together: replace `"*"` with an explicit list of allowed origins AND set
+`allow_credentials=True`. Either change alone is insufficient.
+
+## 2026-03-08 — Deleting a remote branch before gh pr merge closes the PR
+
+`gh pr merge` looks up the PR by its head branch. If the remote branch is deleted first (e.g.
+via `git push origin --delete feat/...`), GitHub marks the PR as closed (not merged). Always run
+`gh pr merge` before deleting the remote branch, or let the merge itself handle branch deletion
+via the `--delete-branch` flag.
+
+## 2026-03-08 — Two separate httpx.AsyncClient() contexts waste a TLS handshake per call
+
+Opening a new `async with httpx.AsyncClient() as client:` for each sequential GitHub API call
+creates a new TCP+TLS connection every time. Merge sequential calls into a single client context
+so the connection is reused. This matters most when chaining two or three calls in the same
+request handler (e.g. exchange code → fetch user info).
+
+## 2026-03-08 — db.refresh(session) after commit is a no-op when expire_on_commit=False
+
+With `expire_on_commit=False` (common in async SQLAlchemy setups), SQLModel/SQLAlchemy does not
+expire attributes after `session.commit()`. A subsequent `await session.refresh(obj)` issues a
+SELECT but the result is identical to what's already in memory — it's dead code. Only call
+`refresh` when you genuinely need server-side defaults (e.g. `created_at`, auto-incremented id)
+and only if `expire_on_commit` is True (the default).
+
+## 2026-03-08 — Redis GETDEL for atomic one-time-use token validation (available since Redis 6.2)
+
+For OAuth CSRF state tokens, a GET followed by DEL has a race window where two concurrent
+requests can both read the value before either deletes it. `GETDEL` (Redis 6.2+) retrieves and
+deletes the key atomically, making one-time-use validation safe without a Lua script or WATCH/MULTI.
+Railway's managed Redis runs 7.x, so this is safe to use.
