@@ -4,6 +4,33 @@ Newest entries at the top.
 
 ---
 
+## auth-session-model — 2026-03-08
+
+**PR:** #2 — feat(auth): Handle e Session SQLModel models com Alembic migration
+**Arquivos principais:** `api/models.py`, `migrations/env.py`, `migrations/versions/0001_create_handle_and_session_tables.py`, `alembic.ini`, `pyproject.toml`
+
+**O que foi feito:**
+Criou a camada de persistência necessária para o fluxo OAuth. Adicionou `api/models.py` com dois modelos SQLModel (`Handle` e `Session`). Inicializou `migrations/` com Alembic em modo async-compatible e criou a migration `0001` que gera as tabelas `handles` e `sessions` no banco.
+
+**Decisões tomadas:**
+- SQLModel sobre SQLAlchemy puro — compatibilidade nativa com FastAPI e Pydantic v2
+- Alembic async via `AsyncEngine` + `run_sync` em `env.py` — necessário para stack async do projeto
+- `datetime.now(tz=timezone.utc)` em vez de `datetime.utcnow()` — deprecated no Python 3.12+
+- `DateTime(timezone=True)` nas colunas de timestamp — garante armazenamento correto com fuso
+- `settings.database_url` em vez de `os.environ` direto — centraliza configuração e evita KeyError em runtime
+
+**Armadilhas encontradas:**
+- `pyproject.toml` sem seção `[tool.poetry]` quebrava Poetry 1.8.0 — adicionado o bloco obrigatório
+- `alembic.ini` usava interpolação `%(DATABASE_URL)s` que `configparser` não resolve — substituído por leitura via `settings` no `env.py`
+- `fastapi-users 13.0.0` conflita com `python-multipart ^0.0.20` — fixado para versão compatível
+- `connectable.dispose()` redundante no `env.py` gerava warning — removido
+
+**Próximos passos:**
+- `auth-oauth-flow` pode agora usar `Handle` e `Session` importando de `api.models`
+- Lembrar de rodar `alembic upgrade head` no deploy
+
+---
+
 ## 2026-02-27 — Bootstrap via /start-project
 
 **What was done:**

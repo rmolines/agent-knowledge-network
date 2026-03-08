@@ -57,6 +57,10 @@ Use the skills below for any non-trivial feature (>2-3 files or with architectur
 | Posts | Hard-delete quebra queries temporais | Sempre soft-delete + versioning |
 | template-sync.yml | Runs on template repo itself → no-op | Guard: `!github.event.repository.is_template` |
 | bootstrap.yml | Only fires on first push (run_number == 1) | Don't re-run manually |
+| Poetry | Poetry 1.8+ requer `package-mode = false` em `[tool.poetry]` quando o projeto usa apenas `[project]` (PEP 621) — falha silenciosa no build | Adicionar `package-mode = false` ao `[tool.poetry]` em `pyproject.toml` |
+| Alembic | `%(DATABASE_URL)s` em `alembic.ini` falha — ConfigParser normaliza option names para lowercase, quebrando interpolação | Usar placeholder fixo em `alembic.ini` e ler a URL via `os.environ` / `settings.database_url` em `env.py` |
+| fastapi-users | `fastapi-users 13.0.0` exige `python-multipart==0.0.9` — conflita com pins explícitos de versões mais recentes | Não pinnar `python-multipart` diretamente; deixar `fastapi-users` resolver a dependência |
+| Python 3.12 | `datetime.utcnow()` deprecated no Python 3.12+ — vira `DeprecationWarning` que CI trata como erro | Usar `datetime.now(tz=timezone.utc)` em todo o codebase |
 
 ## Worktree convention
 
