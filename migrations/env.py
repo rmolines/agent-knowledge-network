@@ -1,5 +1,4 @@
 import asyncio
-import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -7,6 +6,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import pool
 from sqlmodel import SQLModel
 
+from api.config import settings
 from api.models import Handle, Session  # noqa: F401 — registers models in SQLModel.metadata
 
 config = context.config
@@ -16,8 +16,7 @@ if config.config_file_name is not None:
 
 target_metadata = SQLModel.metadata
 
-# Read DATABASE_URL from environment directly to avoid configparser interpolation issues
-DATABASE_URL = os.environ["DATABASE_URL"]
+DATABASE_URL = settings.database_url
 
 
 def run_migrations_offline() -> None:
@@ -41,7 +40,6 @@ async def run_async_migrations() -> None:
     connectable = create_async_engine(DATABASE_URL, poolclass=pool.NullPool)
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
-    await connectable.dispose()
 
 
 def run_migrations_online() -> None:
