@@ -1,8 +1,12 @@
 # CLAUDE.md — Instructions for Claude Code
-<!-- TODO: Replace this file with your project's specific instructions after forking -->
 
 ## Project overview
-<!-- TODO: 2-3 sentences about what this project does and why it exists -->
+
+Agent Knowledge Network é uma rede social open-source onde pares humano+agente Claude
+compartilham conhecimento em formato markdown skill-like. Pares têm handles (@username),
+publicam posts com progressive disclosure (TL;DR → Contexto → Detalhe), e o agente
+busca automaticamente via skill `busca`. O gap board expõe demanda não atendida para
+guiar contribuição. Alternativa confiável ao web search para conhecimento da comunidade AI.
 
 ## Critical rules — NEVER do without explicit approval
 
@@ -10,6 +14,8 @@
 - Never force-push to main — always use PRs with CI passing
 - Never skip pre-commit hooks (--no-verify) — fix the underlying issue
 - Never delete data without a dry-run step first
+- Never expose Qdrant port 6333 publicly — internal network only
+- Never hard-delete posts — use soft-delete + versioning
 
 ## Feature workflow — complete cycle
 
@@ -24,48 +30,73 @@ Use the skills below for any non-trivial feature (>2-3 files or with architectur
 
 **Orientation (any time):** `/project-compass` — "where are we?", "what's left?", "next feature?"
 
-**Why the `/clear` between phases?**
-Clean context = less hallucination. Each phase saves output to `.claude/feature-plans/<name>/`
-so the next phase can read it without relying on conversation memory.
-
 ## Hot files — always read before editing
 
-These files are modified by almost every feature — coordinate with other agents:
-
 - `CLAUDE.md`
+- `api/security/sanitizer.py` — filtro anti-injection; qualquer mudança tem implicação de segurança
+- `api/security/wrappers.py` — XML wrapper para conteúdo recuperado; crítico para prompt injection
+- `skills/busca.md` — skill distribuída para usuários; mudanças afetam todos os agentes instalados
+- `skills/post.md` — skill de publicação; formato do frontmatter afeta o indexer
+- `api/services/qdrant.py` — hybrid search; dimensão do embedding hardcoded aqui (256d)
+- `api/workers/indexer.py` — pipeline de ingest; quarentena e sanitização acontecem aqui
+- `migrations/` — Alembic; coordenar mudanças de schema
 - `.github/workflows/ci.yml`
-- `.claude/commands/*.md`
-- `README.md`
-- `Makefile`
+- `.github/workflows/deploy.yml`
 
 ## Known pitfalls
 
 | Component | Pitfall | Fix |
 |---|---|---|
+| Qdrant | Volume persistente obrigatório no Railway (path `/qdrant/storage`) | Configurar Railway volume antes de deploy |
+| Qdrant | Porta 6333 nunca exposta publicamente | Network privada no Railway |
+| Embedding | Dimensão hardcoded 256d — trocar model invalida TODOS os vetores | Só trocar model em migração planejada com re-embedding total |
+| GitHub API | Cota 5k req/hora por token | Usar token OAuth do usuário para indexação do próprio repo |
+| OAuth CSRF | State parameter deve ser one-time-use (deletar do Redis após callback) | Ver `api/routers/auth.py` |
+| Posts maliciosos | PoisonedRAG: 5 docs crafted contaminam base | Quarentena 24h + sanitizer obrigatório antes de indexar |
+| ARQ workers | Rodam em processo separado; não sourcear `~/.zshrc` | `set -euo pipefail` em scripts |
+| Posts | Hard-delete quebra queries temporais | Sempre soft-delete + versioning |
 | template-sync.yml | Runs on template repo itself → no-op | Guard: `!github.event.repository.is_template` |
-| bootstrap.yml | Only fires on first push (run_number == 1) | Don't re-run manually — it will apply protection twice |
-| Hooks | Run in non-interactive shells; `~/.zshrc` with unconditional `echo` breaks JSON | Use `#!/bin/bash` with `set -euo pipefail`; no shell rc sourcing |
-| settings.json | Hooks execute shell without confirmation (CVE-2025-59536) | Comment warns users; hooks in `.claude/hooks/` are auditable |
-| SYNC_VERSION | SHA must match upstream main HEAD | Update with `git rev-parse upstream/main` after sync |
+| bootstrap.yml | Only fires on first push (run_number == 1) | Don't re-run manually |
 
 ## Worktree convention
 
 - Path: `.claude/worktrees/<feature-name>`
-- Branch: `feature/<feature-name>` (kebab-case)
+- Branch: `feat/<feature-name>` (kebab-case)
 - Always rebase before starting: `git fetch origin && git rebase origin/main`
 
 ## Daily commands
 
 ```bash
 make help            # List all available commands
-make check           # Run lint + validate
-make lint            # Lint Markdown files
-make validate        # Validate JSON + structure
+make check           # Run lint + typecheck + tests
+make lint            # Lint Markdown + Python (ruff)
+make test            # Run unit tests
+make test-integration # Run integration tests (requires docker-compose up)
+make dev             # Start local stack (docker-compose up)
 make sync-skills     # Pull latest skills from upstream template
-make clean           # Remove generated files (.claude/worktrees/, .claude/cache/)
+make clean           # Remove generated files
+```
+
+## Smoke test
+
+```bash
+curl http://localhost:8000/search?q=test
+# Expected: {"results": [], "total": 0}
+
+curl http://localhost:8000/gaps
+# Expected: {"gaps": []}
 ```
 
 ## Secrets
 
-None required — this template has no backend. Add secrets in `.env` (never commit) when
-your project needs them. Document them here and in `.env.example`.
+```bash
+OPENAI_API_KEY=       # embeddings (text-embedding-3-small)
+GITHUB_CLIENT_ID=     # OAuth app
+GITHUB_CLIENT_SECRET= # OAuth app
+DATABASE_URL=         # PostgreSQL (Railway provê automaticamente)
+REDIS_URL=            # Redis (Railway provê automaticamente)
+QDRANT_URL=           # URL interna do Railway
+SECRET_KEY=           # JWT sessions — gerar com: python -c "import secrets; print(secrets.token_urlsafe(64))"
+```
+
+Documentados em `.env.example`. Nunca commitar `.env`.

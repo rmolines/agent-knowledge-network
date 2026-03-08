@@ -55,10 +55,11 @@ Verificar `.claude/feature-plans/<nome>/`:
 Lance os 3 subagentes simultaneamente com Task tool (`run_in_background=true`).
 
 **Subagente A — Codebase:**
-> Leia o CLAUDE.md do projeto para entender stack e convenções.
-> Leia os hot files listados no CLAUDE.md + arquivo de configuração central.
+> Leia o `CLAUDE.md` do projeto para entender stack e convenções.
+> Leia os hot files deste projeto: `api/security/sanitizer.py`, `api/security/wrappers.py`, `skills/busca.md`, `skills/post.md`, `api/services/qdrant.py` (dim 256d), `api/workers/indexer.py`, `migrations/`.
 > Identifique o módulo mais próximo ao problema descrito em: `<feature descrita>`.
 > Retorne: o que já existe no projeto que resolve parcialmente o problema, pontos de extensão naturais, dependências internas relevantes.
+> Atenção às armadilhas: soft-delete obrigatório para posts; sanitizer obrigatório antes de indexar; OAuth CSRF state one-time-use; Qdrant 256d não trocar sem migração.
 
 **Subagente B — Web / First-principles:**
 
@@ -231,7 +232,17 @@ Se não existir ou faltar contexto:
 Lance os 3 subagentes simultaneamente com Task tool (`run_in_background=true`).
 
 **Subagente A — Codebase reader:**
-> Leia CLAUDE.md + hot files + CI workflow principal + arquivo de configuração central.
+> Leia `CLAUDE.md` + os hot files do projeto listados abaixo + CI workflows (`.github/workflows/ci.yml`, `.github/workflows/deploy.yml`).
+>
+> Hot files deste projeto (sempre ler antes de editar):
+> - `api/security/sanitizer.py` — filtro anti-injection
+> - `api/security/wrappers.py` — XML wrapper para conteúdo recuperado
+> - `skills/busca.md` — skill distribuída para usuários
+> - `skills/post.md` — skill de publicação
+> - `api/services/qdrant.py` — hybrid search (dim 256d — não trocar sem migração)
+> - `api/workers/indexer.py` — pipeline de ingest com quarentena e sanitização
+> - `migrations/` — Alembic
+>
 > Leia o módulo mais próximo da feature.
 > Se existir `discovery.md`: use "Problema real" e "Escopo" para focar nos arquivos mais relevantes.
 > Retorne: arquivos relevantes, padrões a seguir, dependências externas necessárias, armadilhas do CLAUDE.md aplicáveis.
@@ -353,15 +364,19 @@ Para cada mudança: arquivo exato, o que fazer (específico), ordem de execuçã
 
 ### Passo B.3 — Checklist de infraestrutura
 
-- [ ] Novo Secret: <não / qual>
+- [ ] Novo Secret: <não / qual> (documentar em `.env.example` se sim)
 - [ ] Script de setup: <não / o que faz>
-- [ ] CI/CD: <não muda / o que muda>
+- [ ] CI/CD (`.github/workflows/ci.yml` ou `deploy.yml`): <não muda / o que muda>
 - [ ] Config principal: <não muda / o que muda>
-- [ ] Novas dependências: <não / quais>
+- [ ] Novas dependências: <não / quais> (adicionar em `requirements.txt`)
+- [ ] Alembic migration necessária: <não / descrever mudança de schema>
+- [ ] Qdrant collection ou índice novo: <não / descrever — confirmar dim=256d>
+- [ ] Sanitizer obrigatório: <se a feature indexa conteúdo externo, `api/security/sanitizer.py` deve ser chamado>
+- [ ] Soft-delete garantido: <se a feature deleta posts, confirmar que é soft-delete + versioning>
 
 ### Passo B.4 — Validar contra LEARNINGS.md (se existir)
 
-Se `LEARNINGS.md` existir: lançar subagente `Explore` para ler e identificar learnings com impacto no plano. Incorporar ajustes e adicionar seção `## Learnings aplicados` no plan.md.
+Se `LEARNINGS.md` existir na raiz do projeto: lançar subagente `Explore` para ler e identificar learnings com impacto no plano. Incorporar ajustes e adicionar seção `## Learnings aplicados` no plan.md.
 
 ### Passo B.5 — Salvar plan.md e perguntar
 
@@ -430,11 +445,15 @@ Salvar em `.claude/feature-plans/<nome>/plan.md`:
 5. <Passo 5 — idem> [Deliverable 2]
 
 ## Checklist de infraestrutura
-- [ ] Novo Secret: <não / qual>
+- [ ] Novo Secret: <não / qual> (documentar em `.env.example` se sim)
 - [ ] Script de setup: <não / o que faz>
-- [ ] CI/CD: <não muda / o que muda>
+- [ ] CI/CD (`.github/workflows/ci.yml` ou `deploy.yml`): <não muda / o que muda>
 - [ ] Config principal: <não muda / o que muda>
-- [ ] Novas dependências: <não / quais>
+- [ ] Novas dependências: <não / quais> (adicionar em `requirements.txt`)
+- [ ] Alembic migration necessária: <não / descrever mudança de schema>
+- [ ] Qdrant collection ou índice novo: <não / descrever — confirmar dim=256d>
+- [ ] Sanitizer obrigatório: <se a feature indexa conteúdo externo, `api/security/sanitizer.py` deve ser chamado>
+- [ ] Soft-delete garantido: <se a feature deleta posts, confirmar que é soft-delete + versioning>
 
 ## Rollback
 <Como reverter — comandos concretos>
@@ -553,8 +572,8 @@ Regras:
 
 Lançar em background (`run_in_background=true`):
 
-- Build (comando definido no CLAUDE.md — ex: `swift build`, `make check`, `npm run build`)
-- Suite de testes automatizados se disponível (ex: `swift test`, `make test`, `npm test`)
+- Build: `docker-compose build` (ou `pip install -e .` para testes unitários sem Docker)
+- Testes: `pytest tests/unit/`
 
 Enquanto aguarda: exibir resumo (arquivos criados/editados, decisões tomadas).
 
@@ -590,7 +609,7 @@ Formato obrigatório:
 
 ## Testes manuais — necessários antes do /ship-feature
 
-Como rodar o app: <comando concreto ou "abrir no Xcode → Run target X">
+Como rodar o app: `docker-compose up` (stack completa) ou `uvicorn api.main:app --reload` (só API)
 
 - [ ] <ação concreta> → <resultado esperado>
 - [ ] <ação concreta> → <resultado esperado>

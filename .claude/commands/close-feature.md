@@ -107,6 +107,9 @@ Disparar os 4 subagentes com `Task tool` (`run_in_background=true`):
 > Critério: problema não-óbvio que outro agente cometeria no mesmo contexto.
 > Se sim: propor ao usuário e, com aprovação, adicionar à tabela de armadilhas em `$REPO_ROOT/CLAUDE.md`.
 > Se não houver nada novo: retornar "sem novas armadilhas".
+>
+> Armadilhas já documentadas neste projeto (não duplicar):
+> - Qdrant volume persistente, porta 6333, embedding 256d, GitHub API cota, OAuth CSRF state, PoisonedRAG, ARQ workers, soft-delete.
 
 ---
 
@@ -178,7 +181,7 @@ Se **nenhum skill foi tocado**: pular sem mensagem.
 Se **há skills novos ou modificados**, verificar primeiro que o kickstart está limpo:
 
 ```bash
-KICKSTART={{KICKSTART_PATH}}
+KICKSTART=/Users/rmolines/git/claude-kickstart
 DIRTY=$(git -C "$KICKSTART" status --porcelain 2>/dev/null)
 if [ -n "$DIRTY" ]; then
   echo "⚠️  kickstart tem mudanças locais não-commitadas:"
@@ -216,11 +219,11 @@ Com confirmação, criar a versão template:
 1. Ler o skill atual e identificar elementos projeto-específicos
 2. Substituir por `{{PLACEHOLDER}}` — ex: paths hardcoded, nomes de ferramentas, constraints específicas
 3. Adicionar seções `## Quando NÃO usar` e `## Testes` se ausentes (padrão kickstart)
-4. Escrever em `{{KICKSTART_PATH}}/.claude/commands/<nome>.md`
+4. Escrever em `/Users/rmolines/git/claude-kickstart/.claude/commands/<nome>.md`
 5. Fazer commit e PR no kickstart:
 
 ```bash
-KICKSTART={{KICKSTART_PATH}}
+KICKSTART=/Users/rmolines/git/claude-kickstart
 git -C "$KICKSTART" add .claude/commands/<nome>.md
 git -C "$KICKSTART" commit -m "feat(skills): add /<nome> — propagated from <projeto>"
 # Usar gh api diretamente (gh pr create pode detectar repo errado em worktrees):
