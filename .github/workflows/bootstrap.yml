@@ -1,0 +1,38 @@
+name: Bootstrap
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    if: ${{ !github.event.repository.is_template && github.run_number == 1 }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Apply branch protection
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.repos.updateBranchProtection({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: 'main',
+              required_status_checks: {
+                strict: true,
+                contexts: ['lint-and-validate']
+              },
+              enforce_admins: false,
+              required_pull_request_reviews: {
+                required_approving_review_count: 0
+              },
+              restrictions: null,
+              allow_force_pushes: false,
+              allow_deletions: false
+            });
+            core.info('✅ Branch protection applied to main');

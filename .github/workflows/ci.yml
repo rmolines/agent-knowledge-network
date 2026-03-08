@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@5b7c9f74fec47e6b15667b2cc23c63dff11e449e # v9
+        with:
+          globs: "**/*.md"
+          config: .markdownlint.yaml
+
+      - name: Validate JSON
+        run: |
+          set -euo pipefail
+          find .claude -name "*.json" | while read -r f; do
+            python3 -m json.tool "$f" > /dev/null && echo "✅ $f" || { echo "❌ $f"; exit 1; }
+          done
+
+      - name: Validate structure
+        run: bash .claude/scripts/validate-structure.sh

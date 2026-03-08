@@ -1,0 +1,76 @@
+name: Template Sync
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday 9am UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    if: ${{ !github.event.repository.is_template }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch upstream skills
+        id: fetch
+        run: |
+          git remote add upstream https://github.com/rmolines/claude-kickstart.git 2>/dev/null || true
+          git fetch upstream main
+
+          CURRENT=$(cat .claude/commands/SYNC_VERSION 2>/dev/null || echo "none")
+          UPSTREAM=$(git rev-parse upstream/main)
+
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "upstream=$UPSTREAM" >> "$GITHUB_OUTPUT"
+
+          if [ "$CURRENT" = "$UPSTREAM" ]; then
+            echo "up_to_date=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "up_to_date=false" >> "$GITHUB_OUTPUT"
+            git checkout upstream/main -- .claude/commands/
+            echo "$UPSTREAM" > .claude/commands/SYNC_VERSION
+          fi
+
+      - name: Create PR with changes
+        if: steps.fetch.outputs.up_to_date == 'false'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { execSync } = require('child_process');
+            const status = execSync('git status --porcelain').toString();
+            if (!status.trim()) { core.info('No changes'); return; }
+
+            const branch = `chore/sync-skills-${Date.now()}`;
+            execSync('git config user.email "github-actions[bot]@users.noreply.github.com"');
+            execSync('git config user.name "github-actions[bot]"');
+            execSync(`git checkout -b ${branch}`);
+            execSync('git add .claude/commands/');
+            execSync('git commit -m "chore: sync skills from upstream template"');
+            execSync(`git push origin ${branch}`);
+
+            const upstream = '${{ steps.fetch.outputs.upstream }}';
+            const pr = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'chore: sync skills from upstream template',
+              head: branch,
+              base: 'main',
+              body: [
+                '## Skills update from upstream',
+                '',
+                'This PR pulls the latest skills from [claude-kickstart](https://github.com/rmolines/claude-kickstart).',
+                '',
+                'Review the diff and merge when ready. Your customizations in `.claude/local-commands/` are unaffected.',
+                '',
+                `Upstream SHA: \`${upstream}\``
+              ].join('\n')
+            });
+            core.info(`PR created: ${pr.data.html_url}`);
