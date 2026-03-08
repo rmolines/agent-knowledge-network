@@ -10,7 +10,8 @@ Newest entries at the top.
 **Arquivos principais:** `api/models.py`, `migrations/env.py`, `migrations/versions/0001_create_handle_and_session_tables.py`, `alembic.ini`, `pyproject.toml`
 
 **O que foi feito:**
-Criou a camada de persistência necessária para o fluxo OAuth. Adicionou `api/models.py` com dois modelos SQLModel (`Handle` e `Session`). Inicializou `migrations/` com Alembic em modo async-compatible e criou a migration `0001` que gera as tabelas `handles` e `sessions` no banco.
+Criou a camada de persistência para o fluxo OAuth. Adicionou `api/models.py` com dois modelos SQLModel (`Handle` e `Session`).
+Inicializou `migrations/` com Alembic async-compatible e criou a migration `0001` que gera as tabelas `handles` e `sessions`.
 
 **Decisões tomadas:**
 - SQLModel sobre SQLAlchemy puro — compatibilidade nativa com FastAPI e Pydantic v2
