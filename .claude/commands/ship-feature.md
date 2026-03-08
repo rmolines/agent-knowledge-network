@@ -11,38 +11,21 @@ Após validação bem-sucedida, use `/close-feature` para documentação e clean
 
 ## Configuração do projeto
 
-Comandos fixos deste projeto (não precisam ser extraídos do CLAUDE.md):
+Antes de qualquer passo, leia o `CLAUDE.md` do projeto e extraia:
+- **Comando de build** (ex: `npm run build`, `go build`, `make build`) → `{{BUILD_CMD}}`
+- **Comando de teste** (ex: `npm test`, `pytest`, `make test`) → `{{TEST_CMD}}`
+- **Comando de smoke test** (ex: `make test MSG="..."`, `curl`, script de validação) → `{{SMOKE_TEST}}`
+- **Hot files do projeto** (arquivos modificados por quase toda feature)
 
-- **BUILD_CMD:** `docker-compose build` (ou `pip install -e .` para testes unitários sem Docker)
-- **TEST_CMD:** `pytest tests/unit/`
-- **INTEGRATION_TEST_CMD:** `pytest tests/integration/` (requer `docker-compose up` rodando)
-- **SMOKE_TEST:**
-  ```bash
-  curl http://localhost:8000/search?q=test
-  # Esperado: {"results": [], "total": 0}
-
-  curl http://localhost:8000/gaps
-  # Esperado: {"gaps": []}
-  ```
-- **CI workflows:** `.github/workflows/ci.yml` e `.github/workflows/deploy.yml`
-- **Deploy:** via tag git — `git tag v<version> && git push origin v<version>` (não há deploy manual)
-- **Hot files do projeto:**
-  - `api/security/sanitizer.py` — filtro anti-injection; qualquer mudança tem implicação de segurança
-  - `api/security/wrappers.py` — XML wrapper para conteúdo recuperado; crítico para prompt injection
-  - `skills/busca.md` — skill distribuída para usuários; mudanças afetam todos os agentes instalados
-  - `skills/post.md` — skill de publicação; formato do frontmatter afeta o indexer
-  - `api/services/qdrant.py` — hybrid search; dimensão do embedding hardcoded aqui (256d)
-  - `api/workers/indexer.py` — pipeline de ingest; quarentena e sanitização acontecem aqui
-  - `migrations/` — Alembic; coordenar mudanças de schema
-  - `.github/workflows/ci.yml`
-  - `.github/workflows/deploy.yml`
-  - `CLAUDE.md`
+Se o CLAUDE.md não listar hot files explicitamente: inferir pelos arquivos de CI e configuração presentes no repo (ex: `.github/workflows/`, `docker-compose.yml`, `Makefile`, arquivos de config principal).
+Se o CLAUDE.md não especificar comandos de build/teste/smoke test: usar `plan.md` como fonte secundária.
+Se nenhum dos dois tiver: perguntar ao usuário antes de prosseguir.
 
 ---
 
 ## Detecção de caminho (fast vs standard)
 
-Hot files já definidos acima. Detectar o caminho antes de qualquer outro passo:
+Após extrair hot files do CLAUDE.md, detectar o caminho antes de qualquer outro passo:
 
 ```bash
 # Linhas alteradas vs. main
@@ -74,8 +57,8 @@ Anunciar o caminho escolhido em uma linha antes de prosseguir:
 Rodar o skill `simplify` sem confirmação, depois:
 
 ```bash
-docker-compose build
-pytest tests/unit/
+{{BUILD_CMD}}
+{{TEST_CMD}}
 ```
 
 Se qualquer um falhar: **parar**. Não avançar com verificação local quebrada.
@@ -192,8 +175,8 @@ Se nenhuma condição se aplicar: continuar normalmente.
 Antes de qualquer commit ou push, rodar:
 
 ```bash
-docker-compose build
-pytest tests/unit/
+{{BUILD_CMD}}    # ex: npm run build, swift build, make build
+{{TEST_CMD}}     # ex: npm test, swift test, make test
 ```
 
 Se qualquer um falhar: **parar aqui**. Não criar PR com build quebrado.
@@ -339,23 +322,11 @@ gh api -X DELETE "repos/$REPO/git/refs/heads/$BRANCH" 2>/dev/null \
 
 ### 6a. Verificar que o deploy chegou ao ambiente
 
-O deploy deste projeto é ativado via tag git — não há deploy automático ao mergear em main.
+Usar o comando de verificação descrito no CLAUDE.md ou `plan.md`.
 
-**Para disparar deploy:**
-```bash
-# Obter versão atual e incrementar (ex: v0.1.0 → v0.1.1)
-git tag v<version>
-git push origin v<version>
-```
+Se o CLAUDE.md não especificar: perguntar ao usuário como verificar que o deploy foi aplicado.
 
-Acompanhar `.github/workflows/deploy.yml` via:
-```bash
-gh run list --workflow=deploy.yml --limit 3
-```
-
-Confirmar que o deploy concluiu com sucesso antes de rodar o smoke test.
-
-**Não declarar deploy OK sem confirmar esta etapa — o Railway leva ~2 min após a tag.**
+**Não declarar deploy OK sem confirmar esta etapa.**
 
 ### 6b. Executar script de setup (se necessário)
 
@@ -363,15 +334,7 @@ Se o plano indicou setup necessário: executar agora e verificar que concluiu se
 
 ### 7. Smoke test
 
-Executar os dois endpoints de validação:
-
-```bash
-curl http://localhost:8000/search?q=test
-# Esperado: {"results": [], "total": 0}
-
-curl http://localhost:8000/gaps
-# Esperado: {"gaps": []}
-```
+Usar `{{SMOKE_TEST}}` (substituído pelo comando concreto do projeto; se ainda é placeholder, extrair do CLAUDE.md ou `plan.md`).
 
 Se falhar: investigar logs antes de escalar o problema.
 **Não declarar sucesso com smoke test vermelho.**
@@ -450,11 +413,6 @@ Quando estiver satisfeito, rode /close-feature para documentação e cleanup.
 - Nunca commitar arquivos com secrets (`.env`, tokens hardcoded)
 - Commit e PR criados autonomamente — sem aguardar confirmação da mensagem
 - Se qualquer passo falhar: parar e reportar antes de continuar
-- **Nunca criar PR sem antes rodar `docker-compose build` + `pytest tests/unit/` e mostrar output** (passo 0.5)
+- **Nunca criar PR sem antes rodar {{BUILD_CMD}} + {{TEST_CMD}} e mostrar output** (passo 0.5)
 - **Nunca declarar "em produção" sem ter verificado deploy (passo 6a) e smoke test (passo 7)**
-- **O smoke test usa os endpoints `/search?q=test` e `/gaps` definidos no CLAUDE.md**
-- **Deploy é via tag git** — `git tag v<version> && git push origin v<version>` — nunca deploy manual direto
-- **Qdrant porta 6333 nunca exposta publicamente** — verificar `.github/workflows/deploy.yml` se tocar networking
-- **Sanitizer obrigatório antes de indexar** — qualquer feature de ingest deve passar por `api/security/sanitizer.py`
-- **Soft-delete sempre** — nunca hard-delete de posts; verificar se a feature não introduz hard-delete acidentalmente
-- **Embedding 256d hardcoded** — se a feature tocar `api/services/qdrant.py`, confirmar que a dimensão não mudou
+- **O smoke test usa o comando do CLAUDE.md ou plan.md — não inventar um genérico**

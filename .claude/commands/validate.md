@@ -18,10 +18,9 @@ essa responsabilidade é do /ship-feature. -->
 - Senão, inferir do branch atual:
   ```bash
   git branch --show-current
-  # Resultado esperado: "feat/<nome>" → nome = parte após "feat/"
-  # (convenção do projeto: branches de feature usam prefixo "feat/")
+  # Resultado esperado: "feature/<nome>" → nome = parte após "feature/"
   ```
-- Se o branch não seguir o padrão `feat/<nome>`, pedir ao usuário que especifique:
+- Se o branch não seguir o padrão `feature/<nome>`, pedir ao usuário que especifique:
   > "Não consegui inferir o nome da feature. Qual o nome? (ex: minha-feature)"
 
 **2. Verificar existência do `plan.md`:**
@@ -121,20 +120,6 @@ Exibir também na conversa.
 [Continuar / Ajustar escopo / Parar e realinhar com o usuário]
 
 <Próxima ação sugerida em 1-2 frases.>
-
----
-
-### 3. Checklist de segurança e arquitetura (específico deste projeto)
-
-Verificar automaticamente no diff:
-
-| Check | Status | Observação |
-|-------|--------|------------|
-| Sanitizer chamado antes de indexar | ✅/❌ | `api/security/sanitizer.py` deve preceder qualquer `indexer.py` |
-| Posts deletados via soft-delete | ✅/❌/N/A | Nenhum hard-delete sem `deleted_at` ou flag de versão |
-| Qdrant dim=256d preservada | ✅/❌/N/A | `api/services/qdrant.py` — verificar se `vector_size` foi alterado |
-| Porta 6333 não exposta | ✅/❌/N/A | Se diff toca networking/Docker, confirmar que 6333 é interno |
-| OAuth state one-time-use | ✅/❌/N/A | Se diff toca `api/routers/auth.py`, confirmar delete do Redis após callback |
 ```
 
 ---
@@ -168,4 +153,4 @@ Verificar automaticamente no diff:
 | Cobertura parcial | `/validate` com metade do plano implementada | 🔄 Parcial em vários itens, recomendação "Continuar" |
 | Sem plan.md | `/validate` sem feature iniciada com start-feature | Erro claro indicando ausência do plan.md |
 | Nome manual | `/validate minha-feature` | Usa `minha-feature` para localizar plan.md |
-| Branch sem padrão | `/validate` em branch `main` ou `chore/xyz` | Pede nome da feature ao usuário |
+| Branch sem padrão | `/validate` em branch `main` ou `fix/xyz` | Pede nome da feature ao usuário |
