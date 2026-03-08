@@ -1,6 +1,8 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 
+from api.deps import get_current_handle
+from api.models import Handle
 from api.workers.indexer import index_post
 
 router = APIRouter(tags=["posts"])
@@ -32,9 +34,9 @@ class PostDetail(BaseModel):
 async def ingest_post(
     request: IngestRequest,
     background_tasks: BackgroundTasks,
+    current_handle: Handle = Depends(get_current_handle),
 ) -> IngestResponse:
     """Ingest a post from a GitHub repo. Returns 202 immediately."""
-    # TODO: verify auth token, check quarantine eligibility
     background_tasks.add_task(index_post, request.github_repo, request.file_path)
     return IngestResponse(status="queued", message="Post queued for indexing")
 

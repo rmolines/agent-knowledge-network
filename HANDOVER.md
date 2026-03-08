@@ -11,11 +11,15 @@ Newest entries at the top.
 **Arquivos principais:** `api/routers/auth.py`, `api/services/redis.py`, `api/services/jwt.py`, `api/db.py`, `api/main.py`, `api/config.py`
 
 **O que foi feito:**
-Implementou o fluxo OAuth completo com GitHub. `/auth/login` armazena um state CSRF de uso único no Redis; `/auth/callback` valida o state (GETDEL atômico), troca o code pelo token GitHub, faz upsert de `Handle` + `Session` no banco e emite um JWT como cookie HttpOnly. `/auth/logout` limpa o cookie.
+Implementou o fluxo OAuth completo com GitHub. `/auth/login` armazena um state CSRF de uso único no Redis;
+`/auth/callback` valida o state (GETDEL atômico), troca o code pelo token GitHub, faz upsert de `Handle` + `Session`
+no banco e emite um JWT como cookie HttpOnly. `/auth/logout` limpa o cookie.
 
 Novos módulos criados: `api/db.py` (async session factory), `api/services/redis.py`, `api/services/jwt.py`.
 
-Correções adicionais: CORS `allow_origins=["*"]` substituído por `settings.allowed_origins` + `allow_credentials=True`; dois `httpx.AsyncClient()` consolidados em um (keep-alive); params OAuth via `httpx.URL.copy_merge_params`; `db.refresh(session)` redundante removido (`expire_on_commit=False` torna-o no-op).
+Correções adicionais: CORS `allow_origins=["*"]` substituído por `settings.allowed_origins` + `allow_credentials=True`;
+dois `httpx.AsyncClient()` consolidados em um (keep-alive); params OAuth via `httpx.URL.copy_merge_params`;
+`db.refresh(session)` redundante removido (`expire_on_commit=False` torna-o no-op).
 
 **Decisões tomadas:**
 - JWT via `python-jose[cryptography]` (HS256, TTL 30 dias)
