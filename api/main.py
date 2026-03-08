@@ -1,19 +1,21 @@
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.config import settings
 from api.routers import auth, gaps, handles, posts, search
 from api.services.qdrant import qdrant_service
+from api.services.redis import close_redis, get_redis
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    await get_redis()  # warm up connection
     await qdrant_service.ensure_collection()
     yield
     await qdrant_service.close()
+    await close_redis()
 
 
 app = FastAPI(
