@@ -1,5 +1,13 @@
 # Changelog
 
+## auth-middleware — PR #5 — 2026-03-08
+
+**Tipo:** feat
+**Commit:** `git show 65daf0f` para diff completo
+**Decisões e armadilhas:** ver LEARNINGS.md#auth-middleware
+
+---
+
 ## auth-oauth-flow — PR #4 — 2026-03-08
 
 **Tipo:** feat

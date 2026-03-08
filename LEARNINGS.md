@@ -110,6 +110,13 @@ SELECT but the result is identical to what's already in memory — it's dead cod
 `refresh` when you genuinely need server-side defaults (e.g. `created_at`, auto-incremented id)
 and only if `expire_on_commit` is True (the default).
 
+## 2026-03-08 — SQLAlchemy async engine is created at module import time, breaking unit tests
+
+`api/db.py` typically creates the async engine at module level (e.g. `engine = create_async_engine(...)`).
+Any module that imports from `api.db` — even indirectly — will trigger this at import time, which requires
+`asyncpg` to be installed. In unit tests that mock the DB, add `sys.modules["api.db"] = MagicMock()` before
+importing the module under test, or use `importlib.import_module` after patching, to avoid the eager engine creation.
+
 ## 2026-03-08 — Redis GETDEL for atomic one-time-use token validation (available since Redis 6.2)
 
 For OAuth CSRF state tokens, a GET followed by DEL has a race window where two concurrent

@@ -101,3 +101,33 @@ Inicializou `migrations/` com Alembic async-compatible e criou a migration `0001
 - Demo GIF/video for README (identified as high-risk if not done before launch)
 - CONTRIBUTING.md for community contributors
 - Mark repo as Template in GitHub Settings (done via API in bootstrap sequence)
+
+---
+
+## auth-middleware — 2026-03-08
+
+**PR:** #5 — feat(auth): authentication middleware — get_current_handle dependency
+**Merged commit:** 65daf0f
+**Key files:** `api/deps.py`, `api/routers/posts.py`, `tests/conftest.py`, `tests/unit/test_deps.py`
+
+**O que foi feito:**
+Criado `api/deps.py` com a dependency `get_current_handle` — lê o cookie HttpOnly `session`,
+decodifica o JWT HS256 (claims `sub=handle_id`, `sid=session_id`), valida a Session no DB
+(existência + expiração) e retorna o `Handle` autenticado. Retorna 401 para cookie ausente,
+JWT inválido, claims faltando, session não encontrada, session expirada ou handle não encontrado.
+Aplicado em `POST /posts` (resolve TODO existente). Adicionados 7 testes unitários cobrindo
+todos os caminhos de erro e o happy path.
+
+**Decisões tomadas:**
+- `import datetime` dentro do corpo da função para evitar problemas de import circular
+- Mock de `api.db` via `sys.modules` no conftest — engine é criado no import, não sob demanda
+
+**Armadilhas encontradas:**
+- `api.db` cria `_engine` no import; testes falham sem asyncpg instalado. Fix: mock via `sys.modules`
+  antes de qualquer import de `api.deps` no conftest.
+- Linhas longas em HANDOVER.md quebraram o CI (MD013 — máx 200 chars). Sempre quebrar linhas
+  longas em arquivos `.md`.
+
+**Próximos passos:**
+- Aplicar `get_current_handle` em rotas futuras que exijam autenticação
+- Considerar variante `get_optional_handle` para rotas que funcionam com ou sem auth
