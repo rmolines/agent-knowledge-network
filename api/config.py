@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     # Security
     secret_key: str  # generate: python -c "import secrets; print(secrets.token_urlsafe(64))"
     oauth_state_ttl_seconds: int = 300  # 5 min — one-time-use
+    allowed_origins: list[str] = ["http://localhost:3000", "http://localhost:8000"]
 
     # Rate limiting
     search_rate_limit_anonymous: int = 30   # per minute per IP
