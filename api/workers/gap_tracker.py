@@ -8,6 +8,11 @@ k-anonymity: gaps are only exposed on the public board when k >= settings.gap_mi
 import hashlib
 from datetime import datetime, timezone
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from api.models import GapSignal
+
 
 def _week_bucket(dt: datetime | None = None) -> str:
     """Return ISO week string like '2026-W10'."""
@@ -21,7 +26,7 @@ def _hash_query(query: str) -> str:
     return hashlib.sha256(query.lower().strip().encode()).hexdigest()[:16]
 
 
-async def record_gap(query: str) -> None:
+async def record_gap(query: str, db: AsyncSession) -> None:
     """
     Record a search with no results as a gap signal.
 
@@ -31,8 +36,13 @@ async def record_gap(query: str) -> None:
     query_hash = _hash_query(query)
     bucket = _week_bucket()
 
-    # TODO: upsert into GapSignal table:
-    # INSERT INTO gap_signals (query_hash, week_bucket, session_count)
-    # VALUES (:hash, :bucket, 1)
-    # ON CONFLICT (query_hash, week_bucket) DO UPDATE SET session_count = session_count + 1
-    print(f"[gap_tracker] gap recorded hash={query_hash} bucket={bucket}")
+    stmt = (
+        pg_insert(GapSignal)
+        .values(query_hash=query_hash, week_bucket=bucket, session_count=1)
+        .on_conflict_do_update(
+            index_elements=["query_hash", "week_bucket"],
+            set_={"session_count": GapSignal.session_count + 1},
+        )
+    )
+    await db.execute(stmt)
+    await db.commit()

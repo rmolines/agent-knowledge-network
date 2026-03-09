@@ -1,5 +1,11 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
+
+from api.config import settings
+from api.db import get_db
+from api.models import GapSignal
 
 router = APIRouter(tags=["gaps"])
 
@@ -17,7 +23,23 @@ class GapsResponse(BaseModel):
 @router.get("/gaps", response_model=GapsResponse)
 async def list_gaps(
     limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
 ) -> GapsResponse:
     """Public gap board — queries with no results, k-anonymized."""
-    # TODO: implement DB query (GapSignal model)
-    return GapsResponse(gaps=[])
+    result = await db.exec(
+        select(GapSignal)
+        .where(GapSignal.session_count >= settings.gap_min_sessions)
+        .order_by(GapSignal.session_count.desc())
+        .limit(limit)
+    )
+    signals = result.all()
+    return GapsResponse(
+        gaps=[
+            GapItem(
+                query_hint=s.query_hash,
+                session_count=s.session_count,
+                week_bucket=s.week_bucket,
+            )
+            for s in signals
+        ]
+    )
