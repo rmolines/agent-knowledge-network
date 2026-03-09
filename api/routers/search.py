@@ -44,9 +44,10 @@ async def _search_db(q: str, limit: int, db: AsyncSession) -> list[tuple[Post, f
 
 
 def _build_result(post: Post, score: float) -> SearchResult:
-    wrapped = wrap_tl_dr(WrappedPost(post_id=str(post.id), handle=post.handle, tl_dr=post.tl_dr))
+    post_id = str(post.id)
+    wrapped = wrap_tl_dr(WrappedPost(post_id=post_id, handle=post.handle, tl_dr=post.tl_dr))
     return SearchResult(
-        post_id=str(post.id),
+        post_id=post_id,
         handle=post.handle,
         title=post.title,
         tl_dr=post.tl_dr,

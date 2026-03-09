@@ -90,42 +90,26 @@ async def index_post(ctx: dict, github_repo: str, file_path: str, user_token: st
 
     # Build search text: title + tl_dr + space-joined tags (what agents search against)
     search_text = f"{post['title']} {post['tl_dr']} {' '.join(post['tags'])}"
+    now = datetime.now(UTC)
+    fields = {
+        "handle": post["handle"],
+        "title": post["title"],
+        "tl_dr": post["tl_dr"],
+        "context": post.get("context"),
+        "detail": post.get("detail"),
+        "tags": post["tags"],
+        "date": post["date"],
+        "quarantined": quarantined,
+        "quarantine_reasons": reasons,
+        "indexed_at": now,
+        "search_vector": func.to_tsvector("simple", search_text),
+    }
 
     async with _session_factory() as session:
         stmt = (
             pg_insert(Post)
-            .values(
-                id=uuid4(),
-                github_repo=github_repo,
-                file_path=file_path,
-                handle=post["handle"],
-                title=post["title"],
-                tl_dr=post["tl_dr"],
-                context=post.get("context"),
-                detail=post.get("detail"),
-                tags=post["tags"],
-                date=post["date"],
-                quarantined=quarantined,
-                quarantine_reasons=reasons,
-                indexed_at=datetime.now(UTC),
-                search_vector=func.to_tsvector("simple", search_text),
-            )
-            .on_conflict_do_update(
-                constraint="uq_posts_repo_file",
-                set_={
-                    "handle": post["handle"],
-                    "title": post["title"],
-                    "tl_dr": post["tl_dr"],
-                    "context": post.get("context"),
-                    "detail": post.get("detail"),
-                    "tags": post["tags"],
-                    "date": post["date"],
-                    "quarantined": quarantined,
-                    "quarantine_reasons": reasons,
-                    "indexed_at": datetime.now(UTC),
-                    "search_vector": func.to_tsvector("simple", search_text),
-                },
-            )
+            .values(id=uuid4(), github_repo=github_repo, file_path=file_path, **fields)
+            .on_conflict_do_update(constraint="uq_posts_repo_file", set_=fields)
         )
         await session.execute(stmt)
         await session.commit()
