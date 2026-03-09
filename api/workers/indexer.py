@@ -9,7 +9,7 @@ are quarantined (not indexed publicly). See api/security/sanitizer.py.
 
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from api.security.sanitizer import is_safe_for_indexing
 from api.services.embeddings import embed
@@ -50,7 +50,7 @@ def parse_post_markdown(content: str) -> dict:  # type: ignore[type-arg]
         "title": str(meta.get("title", "")),
         "handle": str(meta.get("handle", "")),
         "tags": list(meta.get("tags", [])),
-        "date": str(meta.get("date", datetime.now(timezone.utc).date().isoformat())),
+        "date": str(meta.get("date", datetime.now(UTC).date().isoformat())),
         "tl_dr": tl_dr_match.group(1).strip(),
         "context": context_match.group(1).strip() if context_match else None,
         "detail": detail_match.group(1).strip() if detail_match else None,
@@ -101,7 +101,7 @@ async def index_post(github_repo: str, file_path: str, user_token: str | None = 
         "date": post["date"],
         "quarantined": quarantined,
         "quarantine_reasons": reasons,
-        "indexed_at": datetime.now(timezone.utc).isoformat(),
+        "indexed_at": datetime.now(UTC).isoformat(),
     }
 
     await qdrant_service.client.upsert(

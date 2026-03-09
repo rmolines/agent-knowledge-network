@@ -1,21 +1,39 @@
-.PHONY: help check lint validate sync-skills clean setup
+.PHONY: help check lint typecheck test test-integration validate sync-skills clean setup dev
 
 # Default target
 help: ## Show this help
-	@echo "claude-kickstart — available targets:"
+	@echo "agent-knowledge-network — available targets:"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Quick start: make check"
 
-check: lint validate ## Run all checks (lint + validate)
+check: lint test ## Run lint + tests (typecheck is separate — SQLModel has known pyright false positives)
 
-lint: ## Lint all Markdown files
+dev: ## Start local stack (docker-compose up)
+	docker-compose up
+
+test: ## Run unit tests
+	pytest tests/unit -v
+
+test-integration: ## Run integration tests (requires docker-compose up)
+	docker-compose -f docker-compose.test.yml up -d
+	pytest tests/integration -v || (docker-compose -f docker-compose.test.yml down && exit 1)
+	docker-compose -f docker-compose.test.yml down
+
+typecheck: ## Run pyright type checking
+	npx --yes pyright api/
+
+lint: ## Lint Markdown + Python (ruff)
 	@echo "→ Linting Markdown..."
 	@npx --yes markdownlint-cli2 "**/*.md" "!.claude/feature-plans/**" --config .markdownlint.yaml \
 		&& echo "✅ Markdown lint passed" \
 		|| (echo "❌ Markdown lint failed" && exit 1)
+	@echo "→ Linting Python (ruff)..."
+	@ruff check api/ tests/ \
+		&& echo "✅ Python lint passed" \
+		|| (echo "❌ Python lint failed" && exit 1)
 
 validate: ## Validate JSON files and project structure
 	@echo "→ Validating JSON..."

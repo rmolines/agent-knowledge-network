@@ -6,7 +6,7 @@ k-anonymity: gaps are only exposed on the public board when k >= settings.gap_mi
 """
 
 import hashlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,7 @@ from api.models import GapSignal
 
 def _week_bucket(dt: datetime | None = None) -> str:
     """Return ISO week string like '2026-W10'."""
-    d = (dt or datetime.now(timezone.utc)).date()
+    d = (dt or datetime.now(UTC)).date()
     year, week, _ = d.isocalendar()
     return f"{year}-W{week:02d}"
 

@@ -7,7 +7,7 @@ from sqlalchemy import pool
 from sqlmodel import SQLModel
 
 from api.config import settings
-from api.models import Handle, Session  # noqa: F401 — registers models in SQLModel.metadata
+from api.models import GapSignal, Handle, Session  # noqa: F401 — registers models in SQLModel.metadata
 
 config = context.config
 

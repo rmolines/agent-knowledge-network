@@ -124,7 +124,7 @@ requests can both read the value before either deletes it. `GETDEL` (Redis 6.2+)
 deletes the key atomically, making one-time-use validation safe without a Lua script or WATCH/MULTI.
 Railway's managed Redis runs 7.x, so this is safe to use.
 
-## 2026-03-09 — pg_insert on_conflict_do_update: use __table__.c for server-side column references
+## 2026-03-09 — pg_insert on_conflict_do_update: use `__table__.c` for server-side column references
 
 When using SQLAlchemy's `insert().on_conflict_do_update(set_=...)` with `postgresql.insert` (pg_insert),
 column references inside `set_` must be explicit table-level references, not model attributes:

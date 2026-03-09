@@ -1,6 +1,6 @@
 """Unit tests for api.workers.gap_tracker."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -10,11 +10,11 @@ from api.workers.gap_tracker import _hash_query, _week_bucket, record_gap
 
 class TestWeekBucket:
     def test_returns_iso_week_format(self):
-        dt = datetime(2026, 3, 8, tzinfo=timezone.utc)  # 2026-W10
+        dt = datetime(2026, 3, 8, tzinfo=UTC)  # 2026-W10
         assert _week_bucket(dt) == "2026-W10"
 
     def test_zero_pads_single_digit_week(self):
-        dt = datetime(2026, 1, 5, tzinfo=timezone.utc)  # week 2 of 2026
+        dt = datetime(2026, 1, 5, tzinfo=UTC)  # week 2 of 2026
         result = _week_bucket(dt)
         assert result.startswith("2026-W0")
 

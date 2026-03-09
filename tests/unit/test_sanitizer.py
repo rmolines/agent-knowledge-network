@@ -1,6 +1,5 @@
 """Unit tests for the prompt injection sanitizer."""
 
-import pytest
 
 from api.security.sanitizer import is_safe_for_indexing, sanitize
 

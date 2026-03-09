@@ -3,8 +3,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import get_db
-from api.services.qdrant import qdrant_service
 from api.services.embeddings import embed
+from api.services.qdrant import qdrant_service
 from api.workers.gap_tracker import record_gap
 
 router = APIRouter(tags=["search"])
