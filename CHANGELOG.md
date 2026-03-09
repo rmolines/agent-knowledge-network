@@ -1,5 +1,13 @@
 # Changelog
 
+## post-ingest-endpoint — PR #9 — 2026-03-09
+
+**Tipo:** feat
+**Commit:** `git show 6fe5903` para diff completo
+**Decisões e armadilhas:** ver LEARNINGS.md#post-ingest-endpoint
+
+---
+
 ## gap-board — PR #7 — 2026-03-09
 
 **Tipo:** feat

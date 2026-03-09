@@ -4,6 +4,55 @@ Newest entries at the top.
 
 ---
 
+## post-ingest-endpoint — 2026-03-09
+
+**PR:** #9 — feat(arq): wire ARQ job queue into POST /posts endpoint
+**Commits:** `86501e8` (fix(ci): SHA typo em actions/setup-python), `6fe5903` (feat(arq): wire ARQ pool + enqueue_job)
+**Arquivos-chave:** `api/workers/arq_worker.py`, `api/main.py`, `api/deps.py`, `api/routers/posts.py`,
+`tests/conftest.py`, `tests/unit/test_posts.py`
+
+**O que foi feito:**
+
+- `api/workers/arq_worker.py` — criado `WorkerSettings` com configuração do ARQ job queue;
+  `index_post` registrado como job function; aceita `github_token` para autenticar chamadas à API GitHub
+- `api/main.py` — pool ARQ criado no lifespan (`on_startup`/`on_shutdown`) e exposto em `app.state.arq_pool`
+- `api/deps.py` — adicionado helper interno `_validate_session` (elimina duplicação entre `get_current_handle`
+  e futuros deps); novos deps `get_arq_pool` (lê `app.state.arq_pool`) e `get_current_github_token`
+  (extrai o token GitHub da Session autenticada)
+- `api/routers/posts.py` — substituído `BackgroundTasks` por `arq.enqueue_job`; `github_token`
+  agora passado como argumento para o job de indexação
+- `tests/conftest.py` — adicionados mocks de `arq` e `redis.asyncio` para que testes unitários
+  rodem sem as libs instaladas no ambiente CI
+- `tests/unit/test_posts.py` — 3 novos testes: enqueue com sucesso, 401 sem sessão, 500 quando
+  pool ARQ indisponível
+
+**Decisões tomadas:**
+
+- ARQ sobre `FastAPI BackgroundTasks` — `BackgroundTasks` não tem persistência: se o processo
+  reiniciar o job é perdido silenciosamente; ARQ persiste jobs no Redis e reprocessa em falha
+- Helper `_validate_session` extraído para evitar duplicação entre `get_current_handle` e
+  `get_current_github_token` — ambos precisam ler o cookie, decodificar o JWT e validar a Session
+- Token GitHub armazenado na Session (já existente do fluxo OAuth); recuperado via dep e passado
+  explicitamente ao job — evita acoplamento direto entre o router e o modelo de persistência
+
+**Armadilhas encontradas:**
+
+- SHA de `actions/setup-python` no CI tinha um typo de 1 caractere (`...90a2f` → `...90a2b`);
+  CI falhava silenciosamente na verificação de hash da action — conferir SHA completo no commit da action
+- `arq` e `redis.asyncio` não estavam instalados no ambiente de testes unitários; mesma estratégia
+  de mock via `sys.modules` em `tests/conftest.py` (padrão estabelecido nas features `auth-middleware`
+  e `content-security`) — qualquer nova lib com import no nível de módulo precisa do mesmo tratamento
+
+**Próximos passos:**
+
+- `tests/integration/` ainda vazio — testes de integração do endpoint `POST /posts` (enqueue real
+  no Redis + worker processando) podem ser adicionados quando o ambiente Docker estiver disponível no CI
+- Worker ARQ (`arq run api.workers.arq_worker.WorkerSettings`) precisa estar rodando como processo
+  separado em produção; configurar serviço dedicado no Railway para o worker
+- Considerar dead-letter queue ou retries configuráveis em `WorkerSettings` para jobs de indexação falhos
+
+---
+
 ## gap-board — 2026-03-09
 
 **PR:** #7 — feat(gap-board): gap signal recording + public board endpoint

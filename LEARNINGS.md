@@ -168,6 +168,48 @@ SQLAlchemy sessions. To use `.exec()` in route handlers or services, either:
 Mixing the two silently works as long as only `.execute()` is used; the breakage only appears when
 `.exec()` is called with a SQLModel statement.
 
+## 2026-03-09 — Action SHA pinning: one wrong character causes a silent CI failure
+
+SHA pins are checked byte-for-byte by GitHub. A single-character typo (e.g. `...90a2f` instead
+of `...90a2b`) causes the workflow to fail with a cryptic "Can't find action" or checkout error,
+not a helpful "SHA mismatch" message. The diff between the wrong and correct SHA is invisible
+at a glance. When a new SHA is introduced (or copied from another workflow), verify it against
+`https://github.com/<owner>/<repo>/commit/<sha>` before committing.
+
+## 2026-03-09 — Importing api.main in tests pulls in redis, arq, and qdrant_client transitively
+
+`api/main.py` wires the FastAPI lifespan which imports `arq`, and routers that import `redis.asyncio`
+and `qdrant_client`. Any test file that does `from api.main import app` will trigger all three
+imports at collection time, even if the test itself never touches those services.
+
+Tests that previously only imported individual routers or services were immune because those modules
+don't import `api.main`. Once a test needs the full `app` (e.g. for `TestClient` or `AsyncClient`),
+add the following mocks to `tests/conftest.py` **before** any `api.*` import:
+
+```python
+sys.modules.setdefault("redis.asyncio", MagicMock())
+sys.modules.setdefault("arq", MagicMock())
+sys.modules.setdefault("qdrant_client", MagicMock())
+sys.modules.setdefault("qdrant_client.models", MagicMock())
+```
+
+## 2026-03-09 — arq mock for lifespan teardown requires AsyncMock with AsyncMock close()
+
+When mocking `arq` in tests, the lifespan calls `await arq.create_pool(...)` and then
+`await pool.close()` on shutdown. Both must be async-awaitable:
+
+```python
+mock_pool = MagicMock()
+mock_pool.close = AsyncMock()
+arq_mock = MagicMock()
+arq_mock.create_pool = AsyncMock(return_value=mock_pool)
+sys.modules["arq"] = arq_mock
+```
+
+If `create_pool` is a plain `MagicMock`, `await create_pool(...)` raises `TypeError: object
+MagicMock can't be used in 'await' expression`. If `close` is a plain `MagicMock`, the teardown
+coroutine hangs. Both must be `AsyncMock`.
+
 ## 2026-03-09 — Mock qdrant_client em tests unitários
 
 `api/workers/indexer.py` importa `api/services/qdrant.py` no nível do módulo, que por sua vez importa `qdrant_client`.
