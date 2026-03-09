@@ -41,8 +41,7 @@ async def record_gap(query: str, db: AsyncSession) -> None:
         .values(query_hash=query_hash, week_bucket=bucket, session_count=1)
         .on_conflict_do_update(
             index_elements=["query_hash", "week_bucket"],
-            set_={"session_count": GapSignal.session_count + 1},
+            set_={"session_count": GapSignal.__table__.c.session_count + 1},
         )
     )
     await db.execute(stmt)
-    await db.commit()

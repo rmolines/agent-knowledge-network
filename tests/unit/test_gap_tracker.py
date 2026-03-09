@@ -42,7 +42,7 @@ class TestHashQuery:
 
 
 @pytest.mark.asyncio
-async def test_record_gap_executes_upsert_and_commits():
+async def test_record_gap_executes_upsert():
     db = AsyncMock()
 
     with patch("api.workers.gap_tracker.pg_insert") as mock_pg_insert:
@@ -52,7 +52,7 @@ async def test_record_gap_executes_upsert_and_commits():
         await record_gap("some unanswered query", db)
 
     db.execute.assert_awaited_once_with(mock_stmt)
-    db.commit.assert_awaited_once()
+    db.commit.assert_not_called()  # session lifecycle owned by get_db dependency
 
 
 @pytest.mark.asyncio
