@@ -23,3 +23,19 @@ sys.modules.setdefault("api.db", _mock_db)
 # package installed. Unit tests exercise pure functions and never hit Qdrant.
 sys.modules.setdefault("qdrant_client", MagicMock())
 sys.modules.setdefault("qdrant_client.models", MagicMock())
+
+# Mock arq so tests that import api.deps or api.main don't need the package
+# installed. Unit tests mock the ARQ pool via dependency overrides.
+_mock_arq = MagicMock()
+_mock_arq.ArqRedis = MagicMock
+_mock_arq.create_pool = AsyncMock(return_value=MagicMock())
+sys.modules.setdefault("arq", _mock_arq)
+sys.modules.setdefault("arq.connections", MagicMock())
+
+# Mock redis so tests that import api.main (which loads auth router → redis service)
+# don't need the package installed. Unit tests never reach real Redis.
+_mock_redis_asyncio = MagicMock()
+_mock_redis = MagicMock()
+_mock_redis.asyncio = _mock_redis_asyncio
+sys.modules.setdefault("redis", _mock_redis)
+sys.modules.setdefault("redis.asyncio", _mock_redis_asyncio)
