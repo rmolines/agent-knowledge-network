@@ -34,8 +34,6 @@ def client(mock_handle: MagicMock, mock_arq_pool: MagicMock) -> TestClient:
     app.dependency_overrides[get_arq_pool] = lambda: mock_arq_pool
 
     with (
-        patch("api.main.qdrant_service.ensure_collection", new_callable=AsyncMock),
-        patch("api.main.qdrant_service.close", new_callable=AsyncMock),
         patch("api.main.get_redis", new_callable=AsyncMock),
         patch("api.main.close_redis", new_callable=AsyncMock),
         patch("api.main.create_pool", new_callable=AsyncMock, return_value=mock_arq_pool),

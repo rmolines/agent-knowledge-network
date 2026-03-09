@@ -6,14 +6,25 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/akn
       - REDIS_URL=redis://redis:6379
-      - QDRANT_URL=http://qdrant:6333
     env_file:
       - .env
     depends_on:
       db:
         condition: service_healthy
-      qdrant:
+      redis:
         condition: service_started
+
+  worker:
+    build: .
+    command: arq api.workers.arq_worker.WorkerSettings
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/akn
+      - REDIS_URL=redis://redis:6379
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
       redis:
         condition: service_started
 
@@ -31,13 +42,6 @@ services:
       timeout: 5s
       retries: 5
 
-  qdrant:
-    image: qdrant/qdrant:v1.13.0
-    ports:
-      - "6333:6333"
-    volumes:
-      - qdrant_data:/qdrant/storage
-
   redis:
     image: redis:7-alpine
     ports:
@@ -45,4 +49,3 @@ services:
 
 volumes:
   postgres_data:
-  qdrant_data:
