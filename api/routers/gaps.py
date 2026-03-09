@@ -11,7 +11,7 @@ router = APIRouter(tags=["gaps"])
 
 
 class GapItem(BaseModel):
-    query_hint: str  # sanitized hint — never raw query text
+    query_hash: str  # sha256[:16] — one-way, never raw query text
     session_count: int
     week_bucket: str
 
@@ -36,7 +36,7 @@ async def list_gaps(
     return GapsResponse(
         gaps=[
             GapItem(
-                query_hint=s.query_hash,
+                query_hash=s.query_hash,
                 session_count=s.session_count,
                 week_bucket=s.week_bucket,
             )
