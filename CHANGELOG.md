@@ -1,5 +1,13 @@
 # Changelog
 
+## content-security — PR #6 — 2026-03-09
+
+**Tipo:** improvement
+**Commit:** `git show 3235e9f` para diff completo
+**Decisões e armadilhas:** ver LEARNINGS.md#content-security
+
+---
+
 ## auth-middleware — PR #5 — 2026-03-08
 
 **Tipo:** feat

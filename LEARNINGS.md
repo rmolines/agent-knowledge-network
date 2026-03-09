@@ -123,3 +123,16 @@ For OAuth CSRF state tokens, a GET followed by DEL has a race window where two c
 requests can both read the value before either deletes it. `GETDEL` (Redis 6.2+) retrieves and
 deletes the key atomically, making one-time-use validation safe without a Lua script or WATCH/MULTI.
 Railway's managed Redis runs 7.x, so this is safe to use.
+
+## 2026-03-09 — Mock qdrant_client em tests unitários
+
+`api/workers/indexer.py` importa `api/services/qdrant.py` no nível do módulo, que por sua vez importa `qdrant_client`. Mesmo que o teste só exercite `parse_post_markdown` (função pura, sem Qdrant), o import falha com `ModuleNotFoundError: No module named 'qdrant_client'`.
+
+Fix: adicionar ao `tests/conftest.py`:
+
+```python
+sys.modules.setdefault("qdrant_client", MagicMock())
+sys.modules.setdefault("qdrant_client.models", MagicMock())
+```
+
+Mesmo padrão já usado para `api.db` / `asyncpg`.

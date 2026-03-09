@@ -4,6 +4,43 @@ Newest entries at the top.
 
 ---
 
+## content-security — 2026-03-09
+
+**PR:** #6 — test(security): unit tests for wrappers and indexer
+**Arquivos tocados:** `tests/unit/test_wrappers.py`, `tests/unit/test_indexer.py`, `tests/conftest.py`
+
+**O que foi feito:**
+Os módulos de segurança (`api/security/sanitizer.py`, `api/security/wrappers.py`, `api/workers/indexer.py`)
+já estavam implementados. Esta feature adicionou os testes unitários que estavam faltando:
+
+- `tests/unit/test_wrappers.py` — 15 testes cobrindo `wrap_tl_dr`, `wrap_with_context`, `wrap_full`,
+  `BUSCA_SYSTEM_PROMPT_FRAGMENT`, campos `None` e formato XML
+- `tests/unit/test_indexer.py` — 11 testes cobrindo `parse_post_markdown`: post válido, post mínimo,
+  frontmatter ausente, TL;DR ausente, fallback de data
+- `tests/conftest.py` — adicionado mock de `qdrant_client` para que os testes unitários rodem sem
+  o pacote instalado
+
+**Decisões:**
+- `qdrant_client` precisa ser mockado no `conftest.py` (mesmo padrão de `api.db`) porque `parse_post_markdown`
+  é uma função pura, mas a cadeia de imports no nível de módulo puxa `qdrant_client` antes de qualquer
+  execução de código
+- Nenhum bug encontrado no pipeline de segurança: a lógica de quarentena está correta — posts em
+  quarentena são armazenados com `quarantined=True` e `hybrid_search` os filtra por padrão
+  (`exclude_quarantined=True`)
+
+**Armadilhas encontradas:**
+- A chain de imports do `indexer.py` puxa `qdrant_client` indiretamente mesmo ao testar funções puras;
+  é necessário mockar o pacote via `sys.modules` no `conftest.py` antes de qualquer import dos módulos
+  de produção — mesmo padrão do `api.db` descoberto na feature `auth-middleware`
+
+**Próximos passos:**
+- Adicionar testes de integração para o pipeline completo de ingest (quarentena → sanitização → indexação)
+  quando o ambiente Docker estiver disponível no CI
+- Considerar testes para `api/security/sanitizer.py` (injeção de prompt, PoisonedRAG) se o escopo de
+  cobertura for ampliado
+
+---
+
 ## auth-oauth-flow — 2026-03-08
 
 **PR:** #4 — feat(auth): GitHub OAuth flow with HttpOnly session cookie

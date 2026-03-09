@@ -63,6 +63,7 @@ Use the skills below for any non-trivial feature (>2-3 files or with architectur
 | Python 3.12 | `datetime.utcnow()` deprecated no Python 3.12+ — vira `DeprecationWarning` que CI trata como erro | Usar `datetime.now(tz=timezone.utc)` em todo o codebase |
 | CORS + cookies | `allow_origins=["*"]` é incompatível com `allow_credentials=True` — browsers silenciosamente descartam cookies em requests cross-origin; OAuth com cookies parece funcionar em dev (same-origin) mas falha em produção | Usar origem explícita (`FRONTEND_URL`) em vez de wildcard quando credentials estão habilitados |
 | `api.db` | `_engine` criado no import — testes que importam `api.deps` falham com `ModuleNotFoundError: asyncpg` sem driver instalado | Mockar `api.db` via `sys.modules` em `tests/conftest.py` antes de qualquer import |
+| `qdrant_client` | Unit tests que importam módulos com `from api.services.qdrant import ...` falham com `ModuleNotFoundError: No module named 'qdrant_client'` mesmo sem usar Qdrant diretamente | Mockar `qdrant_client` e `qdrant_client.models` via `sys.modules` em `tests/conftest.py` — mesmo padrão do `api.db` |
 
 ## Worktree convention
 
