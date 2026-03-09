@@ -1,6 +1,8 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from arq import create_pool
+from arq.connections import RedisSettings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -14,7 +16,9 @@ from api.services.redis import close_redis, get_redis
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await get_redis()  # warm up connection
     await qdrant_service.ensure_collection()
+    app.state.arq_pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
     yield
+    await app.state.arq_pool.close()
     await qdrant_service.close()
     await close_redis()
 

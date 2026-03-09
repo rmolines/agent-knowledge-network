@@ -2,7 +2,10 @@
 FastAPI dependencies — reusable injectable components.
 """
 
-from fastapi import Cookie, Depends, HTTPException, status
+from datetime import UTC, datetime
+
+from arq import ArqRedis
+from fastapi import Cookie, Depends, HTTPException, Request, status
 from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -12,15 +15,11 @@ from api.models import Handle, Session
 from api.services.jwt import decode_session_token
 
 
-async def get_current_handle(
-    session_cookie: str | None = Cookie(default=None, alias="session"),
-    db: AsyncSession = Depends(get_db),
-) -> Handle:
-    """Decode the HttpOnly session cookie and return the authenticated Handle.
-
-    Raises HTTP 401 if the cookie is missing, the JWT is invalid, or the
-    session / handle no longer exists in the database.
-    """
+async def _validate_session(
+    session_cookie: str | None,
+    db: AsyncSession,
+) -> tuple[Handle, Session]:
+    """Shared validation logic: decode cookie → validate session → return (Handle, Session)."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Not authenticated",
@@ -47,8 +46,6 @@ async def get_current_handle(
     if db_session is None:
         raise credentials_exception
 
-    from datetime import UTC, datetime
-
     if datetime.now(tz=UTC) > db_session.expires_at:
         raise credentials_exception
 
@@ -58,7 +55,37 @@ async def get_current_handle(
     if handle is None:
         raise credentials_exception
 
+    return handle, db_session
+
+
+async def get_current_handle(
+    session_cookie: str | None = Cookie(default=None, alias="session"),
+    db: AsyncSession = Depends(get_db),
+) -> Handle:
+    """Decode the HttpOnly session cookie and return the authenticated Handle.
+
+    Raises HTTP 401 if the cookie is missing, the JWT is invalid, or the
+    session / handle no longer exists in the database.
+    """
+    handle, _ = await _validate_session(session_cookie, db)
     return handle
 
 
-__all__ = ["get_current_handle"]
+async def get_current_github_token(
+    session_cookie: str | None = Cookie(default=None, alias="session"),
+    db: AsyncSession = Depends(get_db),
+) -> str:
+    """Return the authenticated user's GitHub OAuth token.
+
+    Used when indexing posts — the token allows fetching from private repos.
+    """
+    _, db_session = await _validate_session(session_cookie, db)
+    return db_session.github_token
+
+
+async def get_arq_pool(request: Request) -> ArqRedis:
+    """Return the ARQ Redis pool from app state."""
+    return request.app.state.arq_pool
+
+
+__all__ = ["get_arq_pool", "get_current_github_token", "get_current_handle"]
