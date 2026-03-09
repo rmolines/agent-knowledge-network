@@ -1,5 +1,13 @@
 # Changelog
 
+## gap-board — PR #7 — 2026-03-09
+
+**Tipo:** feat
+**Commit:** `git show 4966ff3` para diff completo
+**Decisões e armadilhas:** ver LEARNINGS.md#gap-board
+
+---
+
 ## content-security — PR #6 — 2026-03-09
 
 **Tipo:** improvement

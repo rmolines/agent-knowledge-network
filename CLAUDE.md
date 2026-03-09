@@ -17,6 +17,10 @@ guiar contribuição. Alternativa confiável ao web search para conhecimento da 
 - Never expose Qdrant port 6333 publicly — internal network only
 - Never hard-delete posts — use soft-delete + versioning
 
+## Sprint atual
+
+`.claude/sprint.md` — M1 features, status e ordem de execução. **Leia sempre antes de iniciar qualquer feature.**
+
 ## Feature workflow — complete cycle
 
 Use the skills below for any non-trivial feature (>2-3 files or with architectural decisions):
@@ -64,6 +68,9 @@ Use the skills below for any non-trivial feature (>2-3 files or with architectur
 | CORS + cookies | `allow_origins=["*"]` é incompatível com `allow_credentials=True` — browsers silenciosamente descartam cookies em requests cross-origin; OAuth com cookies parece funcionar em dev (same-origin) mas falha em produção | Usar origem explícita (`FRONTEND_URL`) em vez de wildcard quando credentials estão habilitados |
 | `api.db` | `_engine` criado no import — testes que importam `api.deps` falham com `ModuleNotFoundError: asyncpg` sem driver instalado | Mockar `api.db` via `sys.modules` em `tests/conftest.py` antes de qualquer import |
 | `qdrant_client` | Unit tests que importam módulos com `from api.services.qdrant import ...` falham com `ModuleNotFoundError: No module named 'qdrant_client'` mesmo sem usar Qdrant diretamente | Mockar `qdrant_client` e `qdrant_client.models` via `sys.modules` em `tests/conftest.py` — mesmo padrão do `api.db` |
+| FastAPI session | Chamar `db.commit()` dentro de um helper que recebe a sessão injetada por `get_db` finaliza a transação prematuramente e impede rollback em erros subsequentes — `get_db`'s context manager é o dono da transação | Nunca chamar `db.commit()` em helpers; deixar o contexto de `get_db` (ou o router) fazer o commit ao final |
+| SQLAlchemy upsert | Usar atributo ORM (`GapSignal.session_count + 1`) no `set_` de `on_conflict_do_update` é ambíguo e pode falhar em runtime | Usar referência de coluna de tabela explícita: `GapSignal.__table__.c.session_count + 1` |
+| SQLModel AsyncSession | `db.exec()` (padrão usado em `deps.py` e nos routers) só existe em `sqlmodel.ext.asyncio.session.AsyncSession` — plain `sqlalchemy.ext.asyncio.AsyncSession` não tem esse método; sessions criadas via `async_sessionmaker` do SQLAlchemy puro não são compatíveis | Garantir que `async_sessionmaker` em `api/db.py` usa `class_=sqlmodel.ext.asyncio.session.AsyncSession` |
 
 ## Worktree convention
 

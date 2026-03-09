@@ -4,6 +4,48 @@ Newest entries at the top.
 
 ---
 
+## gap-board — 2026-03-09
+
+**PR:** #7 — feat(gap-board): gap signal recording + public board endpoint
+**Key files:** `api/models.py`, `api/workers/gap_tracker.py`, `api/routers/gaps.py`,
+`api/routers/search.py`, `migrations/versions/0002_create_gap_signals_table.py`
+
+**O que foi feito:**
+
+- `api/models.py` — adicionado `GapSignal` SQLModel com PK composta `(query_hash, week_bucket, session_count)`
+- `migrations/versions/0002_create_gap_signals_table.py` — migration Alembic que cria a tabela `gap_signals`
+- `api/workers/gap_tracker.py` — `record_gap(query, db)`: upsert via `pg_insert` com `ON CONFLICT DO UPDATE`,
+  incrementa `session_count` usando `GapSignal.__table__.c.session_count + 1` (server-side, sem ambiguidade ORM);
+  lifecycle da sessão de DB pertence ao `get_db` — sem `db.commit()` explícito aqui
+- `api/routers/gaps.py` — `list_gaps()`: retorna `gap_signals` com `session_count >= gap_min_sessions`
+  (k=3 configurável em settings), ordenado por demanda decrescente
+- `api/routers/search.py` — injeta `db: AsyncSession = Depends(get_db)` e passa para `record_gap`
+  quando a busca retorna zero resultados
+- 7 testes unitários para `gap_tracker` cobrindo `_week_bucket`, `_hash_query` e `record_gap`
+
+**Decisões tomadas:**
+
+- Queries armazenadas apenas como `sha256[:16]` — nunca texto cru (privacidade)
+- k-anonimato: gaps só são expostos quando `session_count >= gap_min_sessions` (padrão=3, configurável)
+- `GapItem.query_hint` expõe o hash da query — nome ligeiramente enganoso (deveria ser `query_hash`
+  em uma limpeza futura)
+
+**Armadilhas encontradas:**
+
+- `db.commit()` dentro de `record_gap` estava errado — lifecycle da sessão pertence ao `get_db`
+  dependency; removido após revisão de simplify
+- `GapSignal.__table__.c.session_count + 1` é a forma correta de referenciar o valor existente
+  no `set_` do upsert `pg_insert` — `GapSignal.session_count + 1` pode ser avaliado como expressão
+  ORM de forma incorreta
+
+**Próximos passos:**
+
+- Rodar `alembic upgrade head` no Railway após deploy
+- Considerar renomear `GapItem.query_hint` → `query_hash` para clareza da API
+- Adicionar índice em `session_count` para performance do `list_gaps` em escala
+
+---
+
 ## content-security — 2026-03-09
 
 **PR:** #6 — test(security): unit tests for wrappers and indexer

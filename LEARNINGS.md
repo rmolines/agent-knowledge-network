@@ -124,6 +124,50 @@ requests can both read the value before either deletes it. `GETDEL` (Redis 6.2+)
 deletes the key atomically, making one-time-use validation safe without a Lua script or WATCH/MULTI.
 Railway's managed Redis runs 7.x, so this is safe to use.
 
+## 2026-03-09 — pg_insert on_conflict_do_update: use __table__.c for server-side column references
+
+When using SQLAlchemy's `insert().on_conflict_do_update(set_=...)` with `postgresql.insert` (pg_insert),
+column references inside `set_` must be explicit table-level references, not model attributes:
+
+```python
+# Wrong — resolves to a Python-side value, not a server-side reference
+set_={"session_count": GapSignal.session_count + 1}
+
+# Correct — server-side column expression evaluated by Postgres
+set_={"session_count": GapSignal.__table__.c.session_count + 1}
+```
+
+Using the model attribute produces a client-evaluated expression (often `None + 1`) rather than the
+incrementing SQL expression `session_count = session_count + 1`. This silently resets the column
+instead of incrementing it.
+
+## 2026-03-09 — Never call db.commit() inside a helper that receives an injected session
+
+Calling `session.commit()` inside a helper that receives a FastAPI-injected `AsyncSession` (via
+`get_db` dependency) prematurely finalises the transaction. The `get_db` context manager owns the
+session lifecycle: it commits on clean exit and rolls back on exception. An explicit commit inside
+the helper breaks this contract — subsequent operations in the same request see a new implicit
+transaction, and any exception after the premature commit cannot be rolled back.
+
+Rule: only call `commit()` at the boundary that owns the session (the dependency or a top-level
+service that creates its own session). Helpers that receive an injected session must only call
+`session.add()`, `session.exec()`, `session.flush()` (if needed for IDs), or `session.rollback()`.
+
+## 2026-03-09 — SQLModel AsyncSession vs plain SQLAlchemy AsyncSession: exec() only on SQLModel
+
+`SQLModel`'s `AsyncSession` (from `sqlmodel.ext.asyncio.session`) adds the `.exec()` method that
+accepts `SQLModel` select statements and returns typed results. Plain SQLAlchemy's `AsyncSession`
+(from `sqlalchemy.ext.asyncio`) does not have `.exec()` — calling it raises `AttributeError`.
+
+If `api/db.py` uses `sqlalchemy.ext.asyncio.async_sessionmaker`, the sessions it creates are plain
+SQLAlchemy sessions. To use `.exec()` in route handlers or services, either:
+
+1. Wrap the session with SQLModel's `AsyncSession` at the dependency boundary, or
+2. Switch the sessionmaker to use `sqlmodel.ext.asyncio.session.AsyncSession` as the `class_` argument.
+
+Mixing the two silently works as long as only `.execute()` is used; the breakage only appears when
+`.exec()` is called with a SQLModel statement.
+
 ## 2026-03-09 — Mock qdrant_client em tests unitários
 
 `api/workers/indexer.py` importa `api/services/qdrant.py` no nível do módulo, que por sua vez importa `qdrant_client`.
