@@ -102,7 +102,7 @@ async def callback(
         expires_at=expires_at,
     )
     db.add(session)
-    await db.commit()
+    # commit handled by get_db context manager on response exit
 
     # 6. Issue JWT as HttpOnly cookie
     jwt_token = create_session_token(handle_id=handle.id, session_id=session.id)
