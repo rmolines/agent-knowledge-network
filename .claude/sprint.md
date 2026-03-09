@@ -21,7 +21,7 @@ sem intervenção manual. 20–30 posts do seeding indexados e buscáveis. `make
 | 4 | Verificar/completar docker-compose + Railway deploy + smoke test | `infra-deploy` | — | baixo | pending |
 | 5 | Fluxo OAuth completo: `/auth/login` → GitHub → callback → cookie HttpOnly + Redis CSRF one-time-use | `auth-oauth-flow` | `auth-session-model` | alto | done (PR #4) |
 | 6 | Middleware FastAPI `get_current_user` + handle @username associado a posts + `GET /handles/@username` | `auth-middleware-handle` | `auth-oauth-flow` | baixo | done (PR #5) |
-| 7 | `POST /posts` (202 + ARQ), parse frontmatter, embed 256d, upsert Qdrant | `post-ingest-endpoint` | `content-security`, `auth-middleware-handle` | médio | pending |
+| 7 | `POST /posts` (202 + ARQ), parse frontmatter, upsert Postgres FTS (tsvector) | `post-ingest-endpoint` | `content-security`, `auth-middleware-handle` | médio | pending |
 | 8 | Hybrid search endpoint: dense + BM25, alpha=0.5, XML-wrapped, retorna TL;DR + handle + link | `search-service` | `content-security` | médio | pending |
 | 9 | Skills `busca.md` + `post.md` end-to-end com seus endpoints | `skills-e2e` | `post-ingest-endpoint`, `search-service` | baixo | pending |
 | 10 | Quarentena 48h/24h para contas novas + rate limit 10 posts/hora por conta | `ingest-guardrails` | `auth-session-model`, `post-ingest-endpoint` | baixo | pending |

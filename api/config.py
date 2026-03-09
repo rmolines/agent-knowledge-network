@@ -10,15 +10,6 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379"
 
-    # Qdrant
-    qdrant_url: str = "http://localhost:6333"
-    qdrant_collection: str = "posts"
-    embedding_dim: int = 256  # text-embedding-3-small truncated — changing invalidates ALL vectors
-
-    # OpenAI
-    openai_api_key: str
-    embedding_model: str = "text-embedding-3-small"
-
     # GitHub OAuth
     github_client_id: str
     github_client_secret: str

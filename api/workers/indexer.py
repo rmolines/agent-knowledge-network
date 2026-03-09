@@ -1,20 +1,23 @@
 """
 Indexer worker — runs as ARQ background task.
 
-Pipeline: fetch GitHub → sanitize → parse frontmatter → embed → upsert Qdrant.
+Pipeline: fetch GitHub → sanitize → parse frontmatter → upsert Postgres (tsvector).
 
 SECURITY: Sanitization is mandatory before indexing. Posts that fail sanitization
-are quarantined (not indexed publicly). See api/security/sanitizer.py.
+are quarantined (not publicly searchable). See api/security/sanitizer.py.
 """
 
 import re
-import uuid
 from datetime import UTC, datetime
+from uuid import uuid4
 
+from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+from api.db import _session_factory
+from api.models import Post
 from api.security.sanitizer import is_safe_for_indexing
-from api.services.embeddings import embed
 from api.services.github import fetch_file_content
-from api.services.qdrant import qdrant_service
 
 
 def parse_post_markdown(content: str) -> dict:  # type: ignore[type-arg]
@@ -57,16 +60,15 @@ def parse_post_markdown(content: str) -> dict:  # type: ignore[type-arg]
     }
 
 
-async def index_post(github_repo: str, file_path: str, user_token: str | None = None) -> None:
+async def index_post(ctx: dict, github_repo: str, file_path: str, user_token: str | None = None) -> None:
     """
-    Index a post from GitHub. Called as background task.
+    Index a post from GitHub. Called as ARQ background task.
 
     Steps:
     1. Fetch markdown content from GitHub
     2. Sanitize (anti-injection)
     3. Parse frontmatter + sections
-    4. Embed TL;DR + title (what agents search against)
-    5. Upsert to Qdrant with metadata
+    4. Upsert into Postgres posts table with tsvector (title + tl_dr + tags)
     """
     try:
         raw_content = await fetch_file_content(github_repo, file_path, token=user_token)
@@ -86,33 +88,30 @@ async def index_post(github_repo: str, file_path: str, user_token: str | None = 
         print(f"[indexer] Parse error for {github_repo}/{file_path}: {e}")
         return
 
-    # Embed TL;DR + title (what agents search against)
-    embed_text = f"{post['title']}\n{post['tl_dr']}"
-    vector = await embed(embed_text)
-
-    post_id = str(uuid.uuid4())
-    payload = {
-        "github_repo": github_repo,
-        "file_path": file_path,
+    # Build search text: title + tl_dr + space-joined tags (what agents search against)
+    search_text = f"{post['title']} {post['tl_dr']} {' '.join(post['tags'])}"
+    now = datetime.now(UTC)
+    fields = {
         "handle": post["handle"],
         "title": post["title"],
         "tl_dr": post["tl_dr"],
+        "context": post.get("context"),
+        "detail": post.get("detail"),
         "tags": post["tags"],
         "date": post["date"],
         "quarantined": quarantined,
         "quarantine_reasons": reasons,
-        "indexed_at": datetime.now(UTC).isoformat(),
+        "indexed_at": now,
+        "search_vector": func.to_tsvector("simple", search_text),
     }
 
-    await qdrant_service.client.upsert(
-        collection_name="posts",
-        points=[
-            {
-                "id": post_id,
-                "vector": {"dense": vector},
-                "payload": payload,
-            }
-        ],
-    )
+    async with _session_factory() as session:
+        stmt = (
+            pg_insert(Post)
+            .values(id=uuid4(), github_repo=github_repo, file_path=file_path, **fields)
+            .on_conflict_do_update(constraint="uq_posts_repo_file", set_=fields)
+        )
+        await session.execute(stmt)
+        await session.commit()
 
-    print(f"[indexer] Indexed {post_id} ({post['title']}) quarantined={quarantined}")
+    print(f"[indexer] Indexed {github_repo}/{file_path} quarantined={quarantined}")

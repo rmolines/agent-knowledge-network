@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock
 # Provide dummy env vars so pydantic-settings can instantiate Settings without
 # a real .env file. Unit tests never reach the actual services.
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://user:pass@localhost/testdb")
-os.environ.setdefault("OPENAI_API_KEY", "sk-test")
 os.environ.setdefault("GITHUB_CLIENT_ID", "test-client-id")
 os.environ.setdefault("GITHUB_CLIENT_SECRET", "test-client-secret")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests-only")
@@ -19,16 +18,13 @@ _mock_db = MagicMock()
 _mock_db.get_db = AsyncMock()
 sys.modules.setdefault("api.db", _mock_db)
 
-# Mock qdrant_client so tests that import workers/indexer don't need the
-# package installed. Unit tests exercise pure functions and never hit Qdrant.
-sys.modules.setdefault("qdrant_client", MagicMock())
-sys.modules.setdefault("qdrant_client.models", MagicMock())
-
 # Mock arq so tests that import api.deps or api.main don't need the package
 # installed. Unit tests mock the ARQ pool via dependency overrides.
 _mock_arq = MagicMock()
 _mock_arq.ArqRedis = MagicMock
-_mock_arq.create_pool = AsyncMock(return_value=MagicMock())
+_mock_pool = MagicMock()
+_mock_pool.close = AsyncMock()
+_mock_arq.create_pool = AsyncMock(return_value=_mock_pool)
 sys.modules.setdefault("arq", _mock_arq)
 sys.modules.setdefault("arq.connections", MagicMock())
 
