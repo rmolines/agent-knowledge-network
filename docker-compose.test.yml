@@ -13,11 +13,6 @@ services:
       timeout: 5s
       retries: 5
 
-  qdrant:
-    image: qdrant/qdrant:v1.13.0
-    ports:
-      - "6334:6333"
-
   redis:
     image: redis:7-alpine
     ports:
