@@ -1,5 +1,20 @@
 # Changelog
 
+## search-service — PR #12 — 2026-03-09
+
+**Tipo:** feat
+**Commit:** `git show f4f7b67` para diff completo (ou ver PR #12: https://github.com/rmolines/agent-knowledge-network/pull/12)
+**Decisões e armadilhas:** ver LEARNINGS.md#search-service
+
+---
+
+## infra-deploy — PR TBD — 2026-03-08
+
+**Tipo:** feat
+**Decisões e armadilhas:** ver LEARNINGS.md#infra-deploy
+
+---
+
 ## post-ingest-endpoint — PR #9 — 2026-03-09
 
 **Tipo:** feat

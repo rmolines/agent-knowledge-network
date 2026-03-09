@@ -210,6 +210,48 @@ If `create_pool` is a plain `MagicMock`, `await create_pool(...)` raises `TypeEr
 MagicMock can't be used in 'await' expression`. If `close` is a plain `MagicMock`, the teardown
 coroutine hangs. Both must be `AsyncMock`.
 
+## infra-deploy — 2026-03-08
+
+### ARQ worker deve ser um serviço separado no docker-compose e no Railway
+
+O worker ARQ não deve rodar no mesmo processo que o servidor web. Em docker-compose,
+adicionar um segundo serviço usando a mesma imagem mas com command override:
+
+```yaml
+worker:
+  build: .
+  command: arq api.workers.arq_worker.WorkerSettings
+  # mesmas env vars e depends_on que o serviço api
+```
+
+No Railway, criar um segundo serviço apontando para o mesmo repo com
+`startCommand = "arq api.workers.arq_worker.WorkerSettings"` configurado via UI.
+
+### Migrations no startup do api eliminam etapa manual em `make dev`
+
+Adicionar `alembic upgrade head &&` antes do uvicorn no `command` do serviço `api`
+em docker-compose garante que o schema está sempre atualizado após `docker-compose up`.
+O worker não deve rodar migrations — apenas o serviço api é responsável por isso.
+
+### Qdrant: nunca publicar porta 6333 no host em docker-compose
+
+O mapeamento `ports: ["6333:6333"]` expõe o Qdrant na interface de rede do host.
+Para o stack local, a comunicação interna via Docker network é suficiente.
+Remover o bloco `ports` do serviço qdrant — outros contêineres acessam via
+`http://qdrant:6333` sem publicação externa.
+
+---
+
+## 2026-03-09 — get_db must be explicitly overridden per-endpoint in unit tests
+
+Mocking `api.db` via `sys.modules` prevents the engine from being created at import time, but it does not register a valid async-generator override for FastAPI's `get_db` dependency. Endpoints that declare `db: AsyncSession = Depends(get_db)` directly will return 422 or fail with dependency injection errors in tests even when `api.db` is mocked globally.
+
+Fix: in the test client fixture, add `app.dependency_overrides[get_db] = lambda: MagicMock()` explicitly. Endpoints that only use `get_db` indirectly (e.g. via a custom dependency that is itself overridden) do not need this.
+
+## 2026-03-09 — Postgres FTS: language config must match between indexing and querying
+
+`to_tsvector('simple', text)` and `websearch_to_tsquery('simple', query)` must use the same language configuration. Using `'english'` at query time against a `'simple'` tsvector (or vice versa) silently returns zero results — Postgres does not raise an error, it just finds no matches because stemming is applied inconsistently. Always use the same language string in both the index expression and the query function.
+
 ## 2026-03-09 — Mock qdrant_client em tests unitários
 
 `api/workers/indexer.py` importa `api/services/qdrant.py` no nível do módulo, que por sua vez importa `qdrant_client`.

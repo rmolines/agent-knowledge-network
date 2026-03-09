@@ -1,44 +1,65 @@
-# MEMORY.md — Persistent project memory
+# MEMORY.md — Agent Knowledge Network
 
-This file is loaded into Claude Code's context at the start of each session.
-Keep it concise (under 200 lines) — detailed notes go in separate topic files.
+<!-- Atualizado: 2026-03-08 -->
 
-## Project: claude-kickstart
+## O que é este projeto
 
-GitHub Template Repository for professional Claude Code setups.
+Rede social open-source onde pares humano+agente Claude compartilham conhecimento em markdown.
+Agentes buscam via skill `busca` sem depender de web search. Pares têm handles (`@username`),
+publicam posts com progressive disclosure (TL;DR → Contexto → Detalhe).
 
-**Core value prop:** The setup that takes 3 months to discover on your own — working in 30 minutes.
+## M1 — Status atual (7/14 features — 50%)
 
-**Distribution:** Fork → `/start-project "your idea"` → structured project in 30 min.
+```text
+✅  auth-session-model     PR #2   Handle + Session + Alembic
+✅  auth-oauth-flow        PR #4   GitHub OAuth + HttpOnly cookie JWT
+✅  auth-middleware        PR #5   get_current_handle + get_current_github_token
+✅  content-security       PR #6   sanitizer + XML wrapper
+✅  gap-board              PR #7   gap signals + GET /gaps (k≥3)
+✅  post-ingest-endpoint   PR #9   POST /posts + ARQ queue
+✅  infra-deploy           PR TBD  docker-compose worker + smoke-test + railway.toml
 
-## Architecture decisions (permanent)
+🔲  search-service         hybrid search (rota existe, precisa de wire)
+🔲  skills-e2e             busca.md + post.md end-to-end
+🔲  ingest-guardrails      quarantine 48h/24h + rate limit
+🔲  repo-analyzer-service  lista repos com .claude/
+🔲  analyze-on-connect     analyzer no callback OAuth
+🔲  seeding-crawler        bulk CLAUDE.md/skills → post format
+🔲  seeding-run            20–30 posts indexados e buscáveis
+```
 
-- **Template format**: GitHub Template Repository (not CLI) — zero friction for users
-- **Skills sync**: `git fetch upstream` — zero deps, works without installing anything
-- **Memory**: Markdown files — legible by humans and agents without special tooling
-- **Hooks**: External scripts in `.claude/hooks/` — auditable, never inline in `settings.json`
-- **CI**: Static validation only (lint + JSON + structure) — template has no runtime
+**Próxima feature:** `search-service` — Postgres FTS (PR #11 fechado, reescrever com tsvector).
 
-## Key files
+## Arquitetura
 
-- `CLAUDE.md` — project instructions (hot file, read before every feature)
-- `.claude/commands/` — the skills (they ARE the product)
-- `.claude/commands/SYNC_VERSION` — SHA of upstream main used in this version
-- `.claude/scripts/validate-structure.sh` — CI structure check; adding required files here means adding to repo too
-- `.github/workflows/bootstrap.yml` — runs ONCE on first fork push; applies branch protection
-- `.github/workflows/template-sync.yml` — weekly PRs with upstream skill updates
+- **Stack:** FastAPI + SQLModel + Alembic + ARQ + Redis + Postgres FTS (tsvector/BM25)
+- **Search:** Postgres `pg_websearch_to_tsquery` — sem Qdrant, sem OpenAI embeddings. Queries de agentes são técnicas e precisas; controle do vocabulário via skills `post.md` + `busca.md` torna BM25 suficiente.
+- **Auth:** GitHub OAuth → JWT HS256 → HttpOnly cookie (SameSite=Lax)
+- **Workers:** ARQ (Redis-backed) — processo separado, não BackgroundTasks
+- **Deploy:** Railway — API service + Worker service separados (mesmo repo, start commands diferentes)
 
-## Pitfalls discovered
+## Arquivos críticos
 
-- `bootstrap.yml` only fires when `run_number == 1` — don't re-run manually
-- `template-sync.yml` must guard with `!is_template` or it'll open PRs on the template repo itself
-- Hook scripts run in non-interactive shell — never source `~/.zshrc` or `~/.bashrc`
-- `settings.json` hooks run without user confirmation (CVE-2025-59536) — always use scripts in `.claude/hooks/`
+- `CLAUDE.md` — leia sempre antes de editar qualquer coisa
+- `api/security/sanitizer.py` + `wrappers.py` — anti-injection; qualquer mudança tem impacto de segurança
+- `api/services/search.py` — Postgres FTS service (a criar em `search-service`)
+- `api/workers/indexer.py` — pipeline de ingest completo
+- `api/workers/arq_worker.py` — `WorkerSettings` + jobs registrados
+- `migrations/` — Alembic; coordenar mudanças de schema
+- `skills/busca.md` + `skills/post.md` — distribuídas para usuários finais
 
-## TODO: replace on fork
+## Pitfalls recorrentes (resumo — detalhes em LEARNINGS.md)
 
-After forking, update:
-1. `CLAUDE.md` — fill in project overview section
-2. `.github/CODEOWNERS` — replace `@rmolines` with your username
-3. `.github/workflows/template-sync.yml` — update upstream URL if you create your own variant
-4. `README.md` — replace with your project's README
+- `db.commit()` em helpers: nunca — lifecycle pertence ao `get_db` dependency
+- `datetime.utcnow()`: deprecated — usar `datetime.now(tz=timezone.utc)`
+- Mocks em unit tests: `api.db`, `redis.asyncio`, `arq` devem ser mockados via `sys.modules` em `conftest.py`
+- ARQ pool mock: `create_pool` e `pool.close` devem ser `AsyncMock`, não `MagicMock`
+- `get_db` em testes de endpoint: endpoints que dependem diretamente de `get_db` precisam de `app.dependency_overrides[get_db] = lambda: MagicMock()`
+- CORS + credentials: `allow_origins=["*"]` é incompatível com `allow_credentials=True`
+
+## Convenções
+
+- Branch: `feat/<kebab-case>`
+- Worktree: `.claude/worktrees/<feature-name>`
+- Commits: `type(scope): description` + `Co-Authored-By`
+- Nunca commit direto em main — sempre PR com CI passando

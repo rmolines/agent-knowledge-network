@@ -4,6 +4,88 @@ Newest entries at the top.
 
 ---
 
+## search-service — 2026-03-09
+
+**PR:** #12 — feat(search-service): Postgres FTS replacing Qdrant + OpenAI embeddings
+**Status:** merged
+
+### O que foi feito
+
+- `api/models.py` — adicionado modelo `Post` com coluna `search_vector: TSVECTOR` (nullable, computada pelo Postgres no insert)
+- `migrations/versions/0003_create_posts_table.py` — migration Alembic que cria a tabela `posts` com índice GIN em `search_vector` e unique constraint `uq_posts_repo_file` para suportar upsert no re-index
+- `api/routers/search.py` — reescrito `GET /search`: usa `websearch_to_tsquery` + `ts_rank`; resultados são XML-wrapped via `api/security/wrappers.py`
+- `api/workers/indexer.py` — reescrito para fazer upsert no Postgres com `to_tsvector("simple", title + tl_dr + tags)` em vez de gerar embeddings OpenAI e indexar no Qdrant; usa `_session_factory()` diretamente (não o `get_db` do FastAPI) por rodar em background task ARQ
+- `docker-compose.yml` — adicionado serviço `worker` para o ARQ rodando separado da API
+- `docker-compose.test.yml` — atualizado para refletir remoção do Qdrant
+- `api/services/qdrant.py` e `api/services/embeddings.py` — deletados
+- `pyproject.toml` — removidos `qdrant-client` e `openai` (~200 MB de dependências mortas)
+- `tests/unit/test_search.py` — adicionados 6 testes unitários para `GET /search`
+- `CLAUDE.md`, `.env.example`, `sprint.md` — atualizados para refletir o novo stack
+
+### Decisões
+
+- FTS com configuração de linguagem `"simple"` usada tanto na indexação quanto na query — sem stemming específico de idioma, comportamento previsível multilíngue
+- `search_vector` é NULLABLE porque é computada por função Postgres no insert (não pelo app)
+- Unique constraint `uq_posts_repo_file` habilita upsert idempotente no re-index
+- Worker ARQ roda como serviço separado (container separado) — não embutido no processo da API; mantém o mesmo padrão estabelecido em `infra-deploy`
+- Indexer usa `_session_factory()` diretamente em vez do `get_db` do FastAPI — background tasks ARQ não têm acesso ao ciclo de vida de request do FastAPI
+
+### Armadilhas
+
+- `get_db` precisa ser overridden explicitamente no fixture de teste para endpoints que o usam diretamente (`GET /search`); o mock global de `api.db` no `conftest.py` não é suficiente — ver pitfall documentado no CLAUDE.md
+- Mock do pool ARQ deve usar `AsyncMock()` para o método `.close()`, caso contrário o teardown do lifespan do FastAPI falha com `TypeError`
+- Mock de `qdrant_client` removido do `conftest.py` — não é mais necessário após remoção do serviço
+
+### Próximos passos
+
+- Rodar `make migrate` após deploy no Railway para aplicar `0003_create_posts_table`
+- Desprovisionar Qdrant no Railway após deploy bem-sucedido (serviço e volume)
+- Feature `skills-e2e` (#13) depende deste serviço estar em produção
+
+### Arquivos-chave
+
+- `api/models.py` — modelo `Post` com `TSVECTOR`
+- `api/routers/search.py` — endpoint FTS
+- `api/workers/indexer.py` — pipeline de ingest em background
+- `migrations/versions/0003_create_posts_table.py` — migration Alembic
+
+---
+
+## infra-deploy — 2026-03-08
+
+**PR:** TBD
+**Arquivos-chave:** `docker-compose.yml`, `Makefile`, `railway.toml`
+
+**O que foi feito:**
+
+- `docker-compose.yml` — adicionado serviço `worker` que roda `arq api.workers.arq_worker.WorkerSettings`
+  com mesmas variáveis de ambiente e dependências que o `api`; serviço `api` agora executa
+  `alembic upgrade head` antes do uvicorn; porta 6333 do Qdrant removida do mapeamento de host
+  (interna ao Docker network apenas — regra de segurança)
+- `Makefile` — adicionado target `make migrate` (roda migrations via `docker exec` no container api)
+  e `make smoke-test` (curl nos 3 endpoints `/health`, `/search?q=test`, `/gaps` com saída legível)
+- `railway.toml` — adicionado comentário documentando que o worker precisa de um segundo serviço Railway
+  apontando para o mesmo repo com `startCommand = "arq api.workers.arq_worker.WorkerSettings"`
+
+**Decisões tomadas:**
+
+- Worker como serviço separado em docker-compose (não process dentro do container da API) — ARQ workers
+  são stateful (poll Redis); misturar com o processo web cria acoplamento desnecessário e dificulta
+  escalar cada camada independentemente
+- Migrations no startup do `api` via `command` override — garante que `make dev` sempre sobe com schema
+  atualizado sem etapa manual separada; o worker não roda migrations (evita conflitos se os dois subirem
+  exatamente ao mesmo tempo)
+- Qdrant sem port publish no docker-compose — comunicação via Docker internal network é suficiente para
+  o stack local; expor 6333 no host violaria a regra de segurança do projeto
+
+**Próximos passos:**
+
+- Criar PR e atualizar sprint.md com número do PR
+- Criar segundo serviço Railway para o worker (UI do Railway → New Service → Same Repo → override start command)
+- Smoke test manual após `make dev`: `make smoke-test`
+
+---
+
 ## post-ingest-endpoint — 2026-03-09
 
 **PR:** #9 — feat(arq): wire ARQ job queue into POST /posts endpoint
@@ -132,6 +214,36 @@ já estavam implementados. Esta feature adicionou os testes unitários que estav
 
 ---
 
+## auth-middleware — 2026-03-08
+
+**PR:** #5 — feat(auth): authentication middleware — get_current_handle dependency
+**Merged commit:** 65daf0f
+**Key files:** `api/deps.py`, `api/routers/posts.py`, `tests/conftest.py`, `tests/unit/test_deps.py`
+
+**O que foi feito:**
+Criado `api/deps.py` com a dependency `get_current_handle` — lê o cookie HttpOnly `session`,
+decodifica o JWT HS256 (claims `sub=handle_id`, `sid=session_id`), valida a Session no DB
+(existência + expiração) e retorna o `Handle` autenticado. Retorna 401 para cookie ausente,
+JWT inválido, claims faltando, session não encontrada, session expirada ou handle não encontrado.
+Aplicado em `POST /posts` (resolve TODO existente). Adicionados 7 testes unitários cobrindo
+todos os caminhos de erro e o happy path.
+
+**Decisões tomadas:**
+- `import datetime` dentro do corpo da função para evitar problemas de import circular
+- Mock de `api.db` via `sys.modules` no conftest — engine é criado no import, não sob demanda
+
+**Armadilhas encontradas:**
+- `api.db` cria `_engine` no import; testes falham sem asyncpg instalado. Fix: mock via `sys.modules`
+  antes de qualquer import de `api.deps` no conftest.
+- Linhas longas em HANDOVER.md quebraram o CI (MD013 — máx 200 chars). Sempre quebrar linhas
+  longas em arquivos `.md`.
+
+**Próximos passos:**
+- Aplicar `get_current_handle` em rotas futuras que exijam autenticação
+- Considerar variante `get_optional_handle` para rotas que funcionam com ou sem auth
+
+---
+
 ## auth-oauth-flow — 2026-03-08
 
 **PR:** #4 — feat(auth): GitHub OAuth flow with HttpOnly session cookie
@@ -229,33 +341,3 @@ Inicializou `migrations/` com Alembic async-compatible e criou a migration `0001
 - Demo GIF/video for README (identified as high-risk if not done before launch)
 - CONTRIBUTING.md for community contributors
 - Mark repo as Template in GitHub Settings (done via API in bootstrap sequence)
-
----
-
-## auth-middleware — 2026-03-08
-
-**PR:** #5 — feat(auth): authentication middleware — get_current_handle dependency
-**Merged commit:** 65daf0f
-**Key files:** `api/deps.py`, `api/routers/posts.py`, `tests/conftest.py`, `tests/unit/test_deps.py`
-
-**O que foi feito:**
-Criado `api/deps.py` com a dependency `get_current_handle` — lê o cookie HttpOnly `session`,
-decodifica o JWT HS256 (claims `sub=handle_id`, `sid=session_id`), valida a Session no DB
-(existência + expiração) e retorna o `Handle` autenticado. Retorna 401 para cookie ausente,
-JWT inválido, claims faltando, session não encontrada, session expirada ou handle não encontrado.
-Aplicado em `POST /posts` (resolve TODO existente). Adicionados 7 testes unitários cobrindo
-todos os caminhos de erro e o happy path.
-
-**Decisões tomadas:**
-- `import datetime` dentro do corpo da função para evitar problemas de import circular
-- Mock de `api.db` via `sys.modules` no conftest — engine é criado no import, não sob demanda
-
-**Armadilhas encontradas:**
-- `api.db` cria `_engine` no import; testes falham sem asyncpg instalado. Fix: mock via `sys.modules`
-  antes de qualquer import de `api.deps` no conftest.
-- Linhas longas em HANDOVER.md quebraram o CI (MD013 — máx 200 chars). Sempre quebrar linhas
-  longas em arquivos `.md`.
-
-**Próximos passos:**
-- Aplicar `get_current_handle` em rotas futuras que exijam autenticação
-- Considerar variante `get_optional_handle` para rotas que funcionam com ou sem auth

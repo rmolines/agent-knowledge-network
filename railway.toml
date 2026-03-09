@@ -1,3 +1,6 @@
+# API service — main web process
+# Worker service: create a second Railway service pointing to this repo,
+# with startCommand = "arq api.workers.arq_worker.WorkerSettings" (no healthcheck needed)
 [deploy]
 startCommand = "alembic upgrade head && uvicorn api.main:app --host 0.0.0.0 --port $PORT"
 healthcheckPath = "/health"

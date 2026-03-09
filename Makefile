@@ -1,4 +1,4 @@
-.PHONY: help check lint typecheck test test-integration validate sync-skills clean setup dev
+.PHONY: help check lint typecheck test test-integration validate sync-skills clean setup dev migrate smoke-test
 
 # Default target
 help: ## Show this help
@@ -11,8 +11,24 @@ help: ## Show this help
 
 check: lint test ## Run lint + tests (typecheck is separate — SQLModel has known pyright false positives)
 
-dev: ## Start local stack (docker-compose up)
+dev: ## Start local stack (docker-compose up — runs migrations + api + worker)
 	docker-compose up
+
+migrate: ## Run Alembic migrations against the local stack
+	docker-compose exec api alembic upgrade head
+
+smoke-test: ## Verify local stack is healthy (requires make dev running)
+	@echo "→ Smoke testing local stack..."
+	@curl -sf http://localhost:8000/health | python3 -m json.tool \
+		&& echo "✅ /health OK" \
+		|| (echo "❌ /health failed — is 'make dev' running?" && exit 1)
+	@curl -sf "http://localhost:8000/search?q=test" | python3 -m json.tool \
+		&& echo "✅ /search OK" \
+		|| (echo "❌ /search failed" && exit 1)
+	@curl -sf http://localhost:8000/gaps | python3 -m json.tool \
+		&& echo "✅ /gaps OK" \
+		|| (echo "❌ /gaps failed" && exit 1)
+	@echo "✅ All smoke tests passed"
 
 test: ## Run unit tests
 	pytest tests/unit -v
