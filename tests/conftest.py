@@ -18,3 +18,8 @@ os.environ.setdefault("REDIS_URL", "redis://localhost:6379")
 _mock_db = MagicMock()
 _mock_db.get_db = AsyncMock()
 sys.modules.setdefault("api.db", _mock_db)
+
+# Mock qdrant_client so tests that import workers/indexer don't need the
+# package installed. Unit tests exercise pure functions and never hit Qdrant.
+sys.modules.setdefault("qdrant_client", MagicMock())
+sys.modules.setdefault("qdrant_client.models", MagicMock())
