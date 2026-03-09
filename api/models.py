@@ -4,6 +4,14 @@ from uuid import UUID, uuid4
 from sqlmodel import Field, Relationship, SQLModel
 
 
+class GapSignal(SQLModel, table=True):
+    __tablename__ = "gap_signals"
+
+    query_hash: str = Field(primary_key=True, max_length=16)  # sha256[:16] — one-way, never raw query
+    week_bucket: str = Field(primary_key=True, max_length=8)  # e.g. "2026-W10"
+    session_count: int = Field(default=1)
+
+
 class Handle(SQLModel, table=True):
     __tablename__ = "handles"
 

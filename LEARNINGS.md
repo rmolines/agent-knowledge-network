@@ -126,7 +126,8 @@ Railway's managed Redis runs 7.x, so this is safe to use.
 
 ## 2026-03-09 — Mock qdrant_client em tests unitários
 
-`api/workers/indexer.py` importa `api/services/qdrant.py` no nível do módulo, que por sua vez importa `qdrant_client`. Mesmo que o teste só exercite `parse_post_markdown` (função pura, sem Qdrant), o import falha com `ModuleNotFoundError: No module named 'qdrant_client'`.
+`api/workers/indexer.py` importa `api/services/qdrant.py` no nível do módulo, que por sua vez importa `qdrant_client`.
+Mesmo que o teste só exercite `parse_post_markdown` (função pura, sem Qdrant), o import falha com `ModuleNotFoundError: No module named 'qdrant_client'`.
 
 Fix: adicionar ao `tests/conftest.py`:
 
